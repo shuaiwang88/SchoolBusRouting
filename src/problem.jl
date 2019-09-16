@@ -3,7 +3,7 @@
 ##     Problem data
 ## Authors: Arthur Delarue, Sébastien Martin, 2018
 ###################################################
-
+using Printf
 @enum Metric MANHATTAN EUCLIDEAN
 
 """
@@ -202,3 +202,4 @@ function updateStartTimes!(data::SchoolBusData, starttimes)
 end
 
 getthreads() = haskey(ENV, "SLURM_JOB_CPUS_PER_NODE") ? parse(Int, ENV["SLURM_JOB_CPUS_PER_NODE"]) : 0
+
