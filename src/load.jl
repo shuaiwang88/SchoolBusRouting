@@ -3,7 +3,10 @@
 ##     Loads benchmarks from Park, Tae and Kim (2011)
 ## Authors: Arthur Delarue, Sébastien Martin, 2018
 ###################################################
-
+include("problem.jl")
+using Random
+using CSV
+using DataFrames
 """
     Convert weird coordinates from synthetic benchmarks to lat and lon
         Assumes a random center
@@ -12,6 +15,8 @@ function parseCoordinates(x::Real, y::Real; center="Default")
     # for these benchmarks we'll keep the weird units
     return Point(x, y)
 end
+
+parseCoordinates(111, 222.33)
 
 """
     Helper function to parse time from synthetic text files
@@ -23,6 +28,7 @@ function parseTime(time)
     return hours+minutes
 end
 
+parseTime("0630")
 """
     Load a tab-separated file containing the school data
 """
@@ -31,9 +37,11 @@ function loadSchoolsReduced(schoolsFileName::AbstractString,
                             randomStart::Bool=false, seed::Int=-1,
                             spreadStart::Bool=false)
     if seed < 0
-        srand()
+        # srand() 
+        Random.seed!()
     else
-        srand(seed)
+        #srand(seed)
+        Random.seed!(seed)
     end
     schoolData  = CSV.read(schoolsFileName, delim="\t", DataFrame)
 
@@ -60,6 +68,18 @@ function loadSchoolsReduced(schoolsFileName::AbstractString,
     end
     return schools
 end
+
+test_school = loadSchoolsReduced(schoolsFileName="../data/input/CSCB01/Schools.txt")
+
+
+test_school = CSV.read("../data/input/CSCB01/Schools.txt" )
+
+
+
+
+
+
+
 
 function spreadBellTimes(schoolData::DataFrame, maxEffect::Real)
     intervalStart = [parseTime(get(schoolData[i,:AMEARLY])) for i=1:nrow(schoolData)]
