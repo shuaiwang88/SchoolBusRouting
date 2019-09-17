@@ -23,8 +23,8 @@ parseCoordinates(111, 222.33)
 """
 function parseTime(time)
     s = string(time)
-    minutes = float(s[end-1:end]) * 60
-    hours = float(s[1:end-2]) * 3600
+    minutes = parse(Int8,s[end-1:end]) * 60
+    hours = parse(Int8,s[1:end-2]) * 3600
     return hours+minutes
 end
 
@@ -43,7 +43,8 @@ function loadSchoolsReduced(schoolsFileName::AbstractString,
         #srand(seed)
         Random.seed!(seed)
     end
-    schoolData  = CSV.read(schoolsFileName, delim="\t", DataFrame)
+    schoolData  = CSV.read(schoolsFileName)
+    #= schoolData  = CSV.read(schoolsFileName, delim="\t", DataFrame) =#
 
     if spreadStart
         arrivalTimes = spreadBellTimes(schoolData, maxEffect)
@@ -51,11 +52,15 @@ function loadSchoolsReduced(schoolsFileName::AbstractString,
     schools = School[]
     for i in 1:nrow(schoolData)
         id = length(schools) + 1
-        originalId = get(schoolData[i, :ID])
-        position = parseCoordinates(get(schoolData[i, :X]), get(schoolData[i, :Y]))
+        #= originalId = get(schoolData[i, :ID]) =#
+        originalId = (schoolData[i, :ID])
+        #= position = parseCoordinates(get(schoolData[i, :X]), get(schoolData[i, :Y])) =#
+        position = parseCoordinates((schoolData[i, :X]), (schoolData[i, :Y]))
         dwelltime = 154.4
-        intervalStart = parseTime(get(schoolData[i, :AMEARLY]))
-        intervalEnd = parseTime(get(schoolData[i, :AMLATE]))
+        #= intervalstart = parsetime(get(schooldata[i, :amearly])) =#
+        #= intervalend = parsetime(get(schooldata[i, :amlate])) =#
+        intervalStart = parseTime((schoolData[i, :AMEARLY]))
+        intervalEnd = parseTime((schoolData[i, :AMLATE]))
         if randomStart # randomly select start time in allowed window
             starttime = intervalStart + (intervalEnd-intervalStart)*rand()
         elseif spreadStart
@@ -69,17 +74,10 @@ function loadSchoolsReduced(schoolsFileName::AbstractString,
     return schools
 end
 
-test_school = loadSchoolsReduced(schoolsFileName="../data/input/CSCB01/Schools.txt")
-
-
-test_school = CSV.read("../data/input/CSCB01/Schools.txt" )
-
-
-
-
-
-
-
+test_school = loadSchoolsReduced("../data/input/CSCB01/Schools.txt")
+test_school[1].position                                
+School = loadSchoolsReduced("../data/input/CSCB01/Schools.txt")
+School
 
 function spreadBellTimes(schoolData::DataFrame, maxEffect::Real)
     intervalStart = [parseTime(get(schoolData[i,:AMEARLY])) for i=1:nrow(schoolData)]
@@ -111,19 +109,26 @@ end
     Load bus stops with students
 """
 function loadPreComputedStops(stopsFileName::AbstractString, schools::Vector{School})
-    stopData = CSV.read(stopsFileName, delim="\t", DataFrame)
+    #= stopData = CSV.read(stopsFileName, delim="\t", DataFrame) =#
+    stopData = CSV.read(stopsFileName)
     schoolIdMap = Dict(school.originalId => school.id for school in schools)
     stops = [Stop[] for school in schools]
     for i = 1:nrow(stopData)
-        originalId = get(stopData[i, :ID])
-        schoolId = schoolIdMap[get(stopData[i,:EP_ID])]
-        position = parseCoordinates(get(stopData[i,:X_COORD]), get(stopData[i,:Y_COORD]))
-        nStudents = get(stopData[i,:STUDENT_COUNT])
+        originalId = (stopData[i, :ID])
+        schoolId = schoolIdMap[(stopData[i,:EP_ID])]
+        position = parseCoordinates((stopData[i,:X_COORD]), (stopData[i,:Y_COORD]))
+        nStudents = (stopData[i,:STUDENT_COUNT])
         push!(stops[schoolId],
               Stop(length(stops[schoolId])+1, i, originalId, schoolId, position, nStudents))
     end
     return stops
 end
+
+bus_stops = loadPreComputedStops("../data/input/CSCB01/Stops.txt", Schools)
+stopData = CSV.read("../data/input/CSCB01/Stops.txt")
+
+
+
 
 """
     Load synthetic benchmark dataset
