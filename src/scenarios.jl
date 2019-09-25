@@ -8,7 +8,10 @@
     The main euclidian traveltime function.
     Select the time that is the closest to `time` and return the euclidian travel-time
     for the corresponding speed.
+    o:: Origin
+    d:: Destination
 """
+
 function traveltime(data::SchoolBusData, o::Point, d::Point)
     if data.params.metric == MANHATTAN
         return manhattandistance(o,d) / data.params.velocity
@@ -30,13 +33,17 @@ function euclideandistance(o::Point, d::Point)
     return sqrt((o.x - d.x) ^ 2 + (o.y - d.y) ^ 2)
 end
 
-traveltime(data::SchoolBusData, o::Yard, d::Stop) = traveltime(data, o.position, d.position)
-traveltime(data::SchoolBusData, o::School, d::Stop) = traveltime(data, o.position, d.position)
-traveltime(data::SchoolBusData, o::Stop, d::Stop) = traveltime(data, o.position, d.position)
-traveltime(data::SchoolBusData, o::Stop, d::School) = traveltime(data, o.position, d.position)
-traveltime(data::SchoolBusData, o::School, d::Yard) = traveltime(data, o.position, d.position)
-traveltime(data::SchoolBusData, o::Yard, d::School) = traveltime(data, o.position, d.position)
-traveltime(data::SchoolBusData, o::Stop, d::Yard) = traveltime(data, o.position, d.position)
+
+"""
+School, Yard, Stop  2^3
+"""
+traveltime(data::SchoolBusData, o::Yard,   d:: Stop)   = traveltime(data, o.position, d.position)
+traveltime(data::SchoolBusData, o::School, d:: Stop)   = traveltime(data, o.position, d.position)
+traveltime(data::SchoolBusData, o::Stop,   d:: Stop)   = traveltime(data, o.position, d.position)
+traveltime(data::SchoolBusData, o::Stop,   d:: School) = traveltime(data, o.position, d.position)
+traveltime(data::SchoolBusData, o::School, d:: Yard)   = traveltime(data, o.position, d.position)
+traveltime(data::SchoolBusData, o::Yard,   d:: School) = traveltime(data, o.position, d.position)
+traveltime(data::SchoolBusData, o::Stop,   d:: Yard)   = traveltime(data, o.position, d.position)
 
 """
     Get number of students at the stop
