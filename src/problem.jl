@@ -1,176 +1,205 @@
 ###################################################
-## load.jl
-##     Loads benchmarks from Park, Tae and Kim (2011)
+## problem.jl
+##     Problem data
 ## Authors: Arthur Delarue, Sébastien Martin, 2018
 ###################################################
-include("problem.jl")
-using Random
-using CSV
-using DataFrames
+using Printf
+@enum Metric MANHATTAN EUCLIDEAN
+
 """
-    Convert weird coordinates from synthetic benchmarks to lat and lon
-        Assumes a random center
+    Set of parameters, with their documentation.
 """
-function parseCoordinates(x::Real, y::Real; center="Default")
-    # for these benchmarks we'll keep the weird units
-    return Point(x, y)
+mutable struct SchoolBusParameters
+    "number of seats on a bus"
+    bus_capacity::Int
+    "maximum allowed time on bus"
+    max_time_on_bus::Float64
+    "constant stop time at bus stop"
+    constant_stop_time::Float64
+    "stop time per student"
+    stop_time_per_student::Float64
+    "distance metric"
+    metric::Metric
+    "vehicle speed"
+    velocity::Float64
+    SchoolBusParameters() = new()
 end
 
-parseCoordinates(111, 222.33)
-
 """
-    Helper function to parse time from synthetic text files
+    Default set of parameters.
 """
-function parseTime(time)
-    s = string(time)
-    minutes = parse(Int8,s[end-1:end]) * 60
-    hours = parse(Int8,s[1:end-2]) * 3600
-    return hours+minutes
+function defaultParameters()
+    params = SchoolBusParameters()
+    params.bus_capacity                         = 66
+    params.max_time_on_bus                      = 3600.
+    params.constant_stop_time                   = 30.
+    params.stop_time_per_student                = 5.
+    params.velocity                             = 20 * 0.44704 # 20 mph
+    params.metric                               = MANHATTAN
+    return params
 end
 
-parseTime("0630")
 """
-    Load a tab-separated file containing the school data
+    Contains a latitude and a longitude
 """
-function loadSchoolsReduced(schoolsFileName::AbstractString,
-                            maxEffect::Real=Inf,
-                            randomStart::Bool=false, seed::Int=-1,
-                            spreadStart::Bool=false)
-    if seed < 0
-        # srand() 
-        Random.seed!()
-    else
-        #srand(seed)
-        Random.seed!(seed)
+struct Point
+    "the latitude"
+    x::Float64
+    "the longitude"
+    y::Float64
+end
+
+"""
+    Represents all the data needed for 1 school
+"""
+struct School
+    "School Id, corresponds to the index in the array of schools"
+    id::Int
+    "Unique school identifier from data"
+    originalId::Int
+    "School position"
+    position::Point
+    "the bus dwell time (drop-off time)"
+    dwelltime::Float64
+    "School Start Time (in seconds from midnight): time at which buses finish drop-off"
+    starttime::Float64
+    "Time window start"
+    start_tw::Float64
+    "Time window end"
+    end_tw::Float64
+end
+Base.show(io::IO, school::School) = print(io, "School $(school.id) - $(school.originalId)")
+
+"""
+    Represents the information about a bus yard.
+"""
+struct Yard
+    "Yard id"
+    id::Int
+    "Yard location"
+    position::Point
+end
+Base.show(io::IO, yard::Yard) = print(io, "Bus Yard $(yard.id)")
+
+"""
+    Represent a stop a bus has to make, can be a door to door student or a corner stop.
+    This stop corresponds to one school.
+"""
+struct Stop
+    "Unique id, within the stops of one school."
+    id::Int
+    "Unique id, within all the stops that are used"
+    uniqueId::Int
+    "Original id from data"
+    originalId::Int
+    "School that corresponds to the stop"
+    schoolId::Int
+    "Position"
+    position::Point
+    "Number of students"
+    nStudents::Int
+end
+
+"""
+    Data type contains a single routing scenario for one school
+"""
+struct Scenario
+    "School"
+    school::Int
+    "Unique id for this school"
+    id::Int
+    "IDs of bus routes in this scenario"
+    routeIDs::Vector{Int}
+end
+
+"""
+    Object represents a single route
+    By convention, stops are ordered from furthest to school to nearest to school (morning order)
+"""
+struct Route
+    "Unique id of route"
+    id::Int
+    "List of stops for the route"
+    stops::Vector{Int}
+end
+
+"""
+    Object represents an actual bus
+    Schools/routes are ordered in chronological order
+"""
+struct Bus
+    "Unique id"
+    id::Int
+    "Yard of bus"
+    yard::Int
+    "List of schools served"
+    schools::Vector{Int}
+    "List of routes served"
+    routes::Vector{Int}
+end
+
+"""
+    Stores all information provided about the school bus problem
+"""
+mutable struct SchoolBusData
+    params::SchoolBusParameters
+    "If the object contains the base data"
+    withBaseData::Bool
+    "If routing scenarios are computed"
+    withRoutingScenarios::Bool
+    "If final buses are assigned"
+    withFinalBuses::Bool
+
+    # Base data
+    "List of Schools"
+    schools::Vector{School}
+    "List of Bus Yards"
+    yards::Vector{Yard}
+
+    # Stops
+    "List of Bus Stops for each school."
+    stops::Vector{Vector{Stop}}
+
+    # Routing Scenarios
+    "List of scenarios"
+    scenarios::Vector{Vector{Scenario}}
+    "List of routes"
+    routes::Vector{Vector{Route}}
+
+    # Final bus info
+    "Used scenario index"
+    usedScenario::Vector{Int}
+    "Final buses"
+    buses::Vector{Bus}
+
+    function SchoolBusData()
+        data = new()
+        data.params = defaultParameters()
+        data.withBaseData = false
+        data.withRoutingScenarios = false
+        data.withFinalBuses = false
+        return data
     end
-    schoolData  = CSV.read(schoolsFileName)
-    #= schoolData  = CSV.read(schoolsFileName, delim="\t", DataFrame) =#
-
-    if spreadStart
-        arrivalTimes = spreadBellTimes(schoolData, maxEffect)
-    end
-    schools = School[]
-    for i in 1:nrow(schoolData)
-        id = length(schools) + 1
-        #= originalId = get(schoolData[i, :ID]) =#
-        originalId = (schoolData[i, :ID])
-        #= position = parseCoordinates(get(schoolData[i, :X]), get(schoolData[i, :Y])) =#
-        position = parseCoordinates((schoolData[i, :X]), (schoolData[i, :Y]))
-        dwelltime = 154.4
-        #= intervalstart = parsetime(get(schooldata[i, :amearly])) =#
-        #= intervalend = parsetime(get(schooldata[i, :amlate])) =#
-        intervalStart = parseTime((schoolData[i, :AMEARLY]))
-        intervalEnd = parseTime((schoolData[i, :AMLATE]))
-        if randomStart # randomly select start time in allowed window
-            starttime = intervalStart + (intervalEnd-intervalStart)*rand()
-        elseif spreadStart
-            starttime = arrivalTimes[i]
-        else
-            starttime = intervalStart
-        end
-        push!(schools, School(id, originalId, position, dwelltime, starttime,
-                              intervalStart, intervalEnd))
-    end
-    return schools
 end
 
-test_school = loadSchoolsReduced("../data/input/CSCB01/Schools.txt")
-test_school[1].position                                
-test_school[1].end_tw
-School = loadSchoolsReduced("../data/input/CSCB01/Schools.txt")
-
-Data = CSV.read("../data/input/CSCB01/Schools.txt")
-
-a = (35,5,6)
-a ./ 5
-a .* 5
-zeros(10) * 1
-schoolData = Data
-
-function spreadBellTimes(schoolData::DataFrame, maxEffect::Real)
-    #= intervalStart = [parseTime(get(schoolData[i,:AMEARLY])) for i=1:nrow(schoolData)] =#
-    #= intervalEnd = [parseTime(get(schoolData[i,:AMLATE])) for i=1:nrow(schoolData)] =#
-    intervalStart = [parseTime((schoolData[i,:AMEARLY])) for i=1:nrow(schoolData)]
-    intervalEnd = [parseTime((schoolData[i,:AMLATE])) for i=1:nrow(schoolData)]
-    intervalStart = 7.5 .* 3600 .+ 2 .* (intervalStart .- minimum(intervalStart))./
-    							 (maximum(intervalStart) .- minimum(intervalStart))
-    return intervalStart
-
-    # model = Model(solver=GurobiSolver(OutputFlag=0))
-    # @variable(model, intervalStart[i] <= belltime[i=1:nrow(schoolData)] <= intervalEnd[i])
-    # # distances
-    # @variable(model, 0 <= d[i=1:nrow(schoolData), j=1:nrow(schoolData)] <= 
-    #                  maximum(intervalEnd)-minimum(intervalStart))
-    # @constraint(model, [i=1:nrow(schoolData), j=1:nrow(schoolData);
-    #                     0 < intervalStart[j] - intervalEnd[i] < maxEffect],
-    #             d[i,j] <= belltime[j] - belltime[i])
-    # @objective(model, Max, sum(d))
-    # solve(model)
-    # return getvalue(belltime)
+function Base.show(io::IO, data::SchoolBusData)
+    println(io, "School Bus Data")
+    data.withBaseData && @printf(io, "- With %d schools: %.1f stops/school.\n",
+                                 length(data.schools),
+                                 mean(length(stoplist) for stoplist in data.stops))
+    data.withRoutingScenarios && @printf(io, "- With routing scenarios computed: %.1f/school.\n",
+                                mean(length(scenarioList) for scenarioList in data.scenarios))
+    data.withFinalBuses && @printf(io, "- With %d buses assigned.\n", length(data.buses))
 end
 
-schoolData
-spreadBellTimes(Data, 8)
-
-
 """
-    Create a yard in the center of the district, with 200 full buses
+    Update all school start times at once
 """
-function syntheticYards()
-	return [Yard(1, parseCoordinates(105_600., 105_600.))]
-end
-
-a = syntheticYards()
-a
-
-"""
-    Load bus stops with students
-"""
-function loadPreComputedStops(stopsFileName::AbstractString, schools::Vector{School})
-    #= stopData = CSV.read(stopsFileName, delim="\t", DataFrame) =#
-    stopData = CSV.read(stopsFileName)
-    schoolIdMap = Dict(school.originalId => school.id for school in schools)
-    schools[1].id
-    stops = [Stop[] for school in schools]
-    for i = 1:nrow(stopData)
-        originalId = (stopData[i, :ID])
-        schoolId = schoolIdMap[(stopData[i,:EP_ID])]
-        position = parseCoordinates((stopData[i,:X_COORD]), (stopData[i,:Y_COORD]))
-        nStudents = (stopData[i,:STUDENT_COUNT])
-        push!(stops[schoolId],
-              Stop(length(stops[schoolId])+1, i, originalId, schoolId, position, nStudents))
-    end
-    return stops
-end
-schools[1]
-School1 = loadSchoolsReduced("../data/input/CSCB01/Schools.txt")
-schools = School1
-bus_stops = loadPreComputedStops("../data/input/CSCB01/Stops.txt", School1)
-
-stopData = CSV.read("../data/input/CSCB01/Stops.txt")
-
-
-aggregate(stopData, :EP_ID, length) # see how many stops for each School
-
-stopData[stopData[:EP_ID] .== 200001, :]
-
-"""
-    Load synthetic benchmark dataset
-"""
-function loadSyntheticBenchmark(schoolsFile::AbstractString, stopsFile::AbstractString;
-                                randomStart::Bool=false, seed::Int=-1,
-                                spreadStart::Bool=false, maxEffect::Real=Inf)
-	data = SchoolBusData()
-    data.schools = loadSchoolsReduced(schoolsFile, maxEffect, randomStart, seed, spreadStart)
-    data.yards = syntheticYards()
-    data.stops = loadPreComputedStops(stopsFile, data.schools)
-    # update parameters
-    data.params.bus_capacity                         = 66
-    data.params.max_time_on_bus                      = 2700.
-    data.params.constant_stop_time                   = 19.
-    data.params.stop_time_per_student                = 2.6
-    data.params.velocity                             = 29.3333333#20 * 0.44704
-    data.params.metric                               = MANHATTAN
-    data.withBaseData = true
+function updateStartTimes!(data::SchoolBusData, starttimes)
+    data.schools = [School(school.id, school.originalId, school.position, school.dwelltime,
+                           starttimes[i]) for (i, school) in enumerate(data.schools)]
     return data
 end
+
+getthreads() = haskey(ENV, "SLURM_JOB_CPUS_PER_NODE") ? parse(Int, ENV["SLURM_JOB_CPUS_PER_NODE"]) : 0
+
