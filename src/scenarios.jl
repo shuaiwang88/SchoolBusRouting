@@ -11,6 +11,14 @@
     o:: Origin
     d:: Destination
 """
+# include("problem.jl")
+# include("load.jl")
+#Sinclude("SchoolBusRouting.jl")
+import Statistics: mean
+
+# data = SchoolBusRouting.loadSyntheticBenchmark("../data/input/CSCB01/Schools.txt",
+#                                   "../data/input/CSCB01/Stops.txt")
+
 
 function traveltime(data::SchoolBusData, o::Point, d::Point)
     if data.params.metric == MANHATTAN
@@ -20,19 +28,21 @@ function traveltime(data::SchoolBusData, o::Point, d::Point)
     end
 end
 
+
+
 """
     Manhattan Distance between two points, in meters
 """
 function manhattandistance(o::Point, d::Point)
     return abs(o.x - d.x) + abs(o.y - d.y)
 end
+
 """
     Euclidean distance between two points, in meters
 """
 function euclideandistance(o::Point, d::Point)
     return sqrt((o.x - d.x) ^ 2 + (o.y - d.y) ^ 2)
 end
-
 
 """
 School, Yard, Stop  2^3
@@ -50,6 +60,10 @@ traveltime(data::SchoolBusData, o::Stop,   d:: Yard)   = traveltime(data, o.posi
 """
 nStudents(data::SchoolBusData, stop::Stop) = stop.nStudents
 nStudents(data::SchoolBusData, school::Int, stop::Int) = data.stops[school][stop].nStudents
+
+bus_data = loadSchoolsReduced("../data/input/CSCB01/Schools.txt")
+
+bus_data[1].position
 
 """
     Get time that bus must remain at stop
@@ -113,6 +127,7 @@ function greedy(data::SchoolBusData, schoolID::Int, maxRouteTime::Float64)
             for stopID in collect(1:length(availableStops))[availableStops]
                 if (data.stops[schoolID][stopID].nStudents + currentState.nStudents <=
                     data.params.bus_capacity)
+
                     insertId, timeDiff = bestInsertion(data, schoolID, stopID, currentState,
                                                        maxRouteTime)
                     if timeDiff < bestTimeDiff
@@ -152,13 +167,13 @@ end
 """
 function bestInsertion(data::SchoolBusData,
                        schoolID::Int,
-                       newStopID::Int, 
+                       newStopID::Int,
                        cs::GreedyState,
                        maxRouteTime::Float64)
-    newStop = data.stops[schoolID][newStopID]
-    school = data.schools[schoolID]
+    newStop      = data.stops[schoolID][newStopID]
+    school       = data.schools[schoolID]
     bestTimeDiff = Inf
-    insertId = -1
+    insertId     = -1
     # before first stop
     timeDiff = traveltime(data, newStop, data.stops[schoolID][cs.route.stops[1]])
     totTime = timeDiff + cs.routeTime + stopTime(data, newStop)
@@ -180,8 +195,8 @@ function bestInsertion(data::SchoolBusData,
             isFeasible = (timeDiff + stopTime(data, newStop) <= cs.slackTimes[i])
             # check feasibility for the potential new stop
             isFeasible = isFeasible && (cs.stopTimes[i+1] + timeToNextStop +
-                                        stopTime(data, 
-                                                 data.stops[schoolID][cs.route.stops[i+1]]) <=
+                                        stopTime(data,
+                                             data.stops[schoolID][cs.route.stops[i+1]]) <=
                                         maxTravelTime(data, newStop))
             isFeasible = isFeasible && totTime <= maxRouteTime
             if isFeasible
@@ -196,7 +211,7 @@ function bestInsertion(data::SchoolBusData,
                 traveltime(data, data.stops[schoolID][cs.route.stops[end]], school)
     if timeDiff < bestTimeDiff
         totTime = timeDiff + cs.routeTime + stopTime(data, newStop)
-        isFeasible = timeDiff + stopTime(data, newStop) <= cs.slackTimes[end] && 
+        isFeasible = timeDiff + stopTime(data, newStop) <= cs.slackTimes[end] &&
                         (traveltime(data, newStop, school) <= maxTravelTime(data, newStop))
         isFeasible = isFeasible && totTime <= maxRouteTime
         if isFeasible
@@ -234,7 +249,7 @@ function buildRoute(data::SchoolBusData,
     elseif insertID == length(cs.route.stops) # at the end
         previousStop = data.stops[schoolID][cs.route.stops[end]] # last stop on route
         newStopTimeOnBus = traveltime(data, newStop, school) # time from new stop to school
-        timeDiff = newStopTimeOnBus + 
+        timeDiff = newStopTimeOnBus +
                    traveltime(data, previousStop, newStop) -
                    traveltime(data, previousStop, school)
     else # in the middle
@@ -242,7 +257,7 @@ function buildRoute(data::SchoolBusData,
         nextStop = data.stops[schoolID][cs.route.stops[insertID+1]]
         timeToNextStop = traveltime(data, newStop, nextStop)
         timeDiff = traveltime(data, previousStop, newStop) +
-                   timeToNextStop - 
+                   timeToNextStop -
                    traveltime(data, previousStop, nextStop)
         newStopTimeOnBus = timeToNextStop + cs.stopTimes[insertID+1] + stopTime(data, nextStop)
     end
@@ -509,7 +524,7 @@ function splitRoutes(data::SchoolBusData, schoolID::Int,
     for (routeId, route) in enumerate(routes)
         if selectedRoute != routeId
             newRouteIds = collect(s for s in route.stopIds if s != stopId)
-            routes[routeId] = FeasibleRoute(newRouteIds, route.cost + costs[routeId])    
+            routes[routeId] = FeasibleRoute(newRouteIds, route.cost + costs[routeId])
         end
     end
     return routes

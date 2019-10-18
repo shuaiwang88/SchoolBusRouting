@@ -182,6 +182,8 @@ mutable struct SchoolBusData
     end
 end
 
+SchoolBusData()
+
 function Base.show(io::IO, data::SchoolBusData)
     println(io, "School Bus Data")
     data.withBaseData && @printf(io, "- With %d schools: %.1f stops/school.\n",
@@ -202,4 +204,3 @@ function updateStartTimes!(data::SchoolBusData, starttimes)
 end
 
 getthreads() = haskey(ENV, "SLURM_JOB_CPUS_PER_NODE") ? parse(Int, ENV["SLURM_JOB_CPUS_PER_NODE"]) : 0
-

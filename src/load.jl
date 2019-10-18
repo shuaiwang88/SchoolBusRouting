@@ -3,7 +3,7 @@
 ##     Loads benchmarks from Park, Tae and Kim (2011)
 ## Authors: Arthur Delarue, Sébastien Martin, 2018
 ###################################################
-include("problem.jl")
+# include("problem.jl")
 using Random
 using CSV
 using DataFrames
@@ -37,7 +37,7 @@ function loadSchoolsReduced(schoolsFileName::AbstractString,
                             randomStart::Bool=false, seed::Int=-1,
                             spreadStart::Bool=false)
     if seed < 0
-        # srand() 
+        # srand()
         Random.seed!()
     else
         #srand(seed)
@@ -75,9 +75,7 @@ function loadSchoolsReduced(schoolsFileName::AbstractString,
 end
 
 test_school = loadSchoolsReduced("../data/input/CSCB01/Schools.txt")
-test_school[1].position                                
-School = loadSchoolsReduced("../data/input/CSCB01/Schools.txt")
-School
+test_school[1].position
 
 function spreadBellTimes(schoolData::DataFrame, maxEffect::Real)
     intervalStart = [parseTime(get(schoolData[i,:AMEARLY])) for i=1:nrow(schoolData)]
@@ -88,7 +86,7 @@ function spreadBellTimes(schoolData::DataFrame, maxEffect::Real)
     # model = Model(solver=GurobiSolver(OutputFlag=0))
     # @variable(model, intervalStart[i] <= belltime[i=1:nrow(schoolData)] <= intervalEnd[i])
     # # distances
-    # @variable(model, 0 <= d[i=1:nrow(schoolData), j=1:nrow(schoolData)] <= 
+    # @variable(model, 0 <= d[i=1:nrow(schoolData), j=1:nrow(schoolData)] <=
     #                  maximum(intervalEnd)-minimum(intervalStart))
     # @constraint(model, [i=1:nrow(schoolData), j=1:nrow(schoolData);
     #                     0 < intervalStart[j] - intervalEnd[i] < maxEffect],
@@ -124,10 +122,10 @@ function loadPreComputedStops(stopsFileName::AbstractString, schools::Vector{Sch
     return stops
 end
 
-bus_stops = loadPreComputedStops("../data/input/CSCB01/Stops.txt", Schools)
-stopData = CSV.read("../data/input/CSCB01/Stops.txt")
+bus_stops = loadPreComputedStops("../data/input/CSCB01/Stops.txt", test_school)
+#= stopData = CSV.read("../data/input/CSCB01/Stops.txt") =#
 
-
+test_school
 
 
 """
