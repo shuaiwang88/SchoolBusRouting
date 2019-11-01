@@ -11,14 +11,15 @@
     o:: Origin
     d:: Destination
 """
-# include("problem.jl")
-# include("load.jl")
+include("problem.jl")
+include("load.jl")
 #Sinclude("SchoolBusRouting.jl")
 import Statistics: mean
 
-# data = SchoolBusRouting.loadSyntheticBenchmark("../data/input/CSCB01/Schools.txt",
-#                                   "../data/input/CSCB01/Stops.txt")
+data = loadSyntheticBenchmark("data/input/CSCB01/Schools.txt",
+                                  "data/input/CSCB01/Stops.txt")
 
+data.stops[1]
 
 function traveltime(data::SchoolBusData, o::Point, d::Point)
     if data.params.metric == MANHATTAN
@@ -60,18 +61,23 @@ traveltime(data::SchoolBusData, o::Stop,   d:: Yard)   = traveltime(data, o.posi
 """
 nStudents(data::SchoolBusData, stop::Stop) = stop.nStudents
 nStudents(data::SchoolBusData, school::Int, stop::Int) = data.stops[school][stop].nStudents
-
-bus_data = loadSchoolsReduced("../data/input/CSCB01/Schools.txt")
-
-bus_data[1].position
-
+#
+# bus_data = loadSchoolsReduced("../data/input/CSCB01/Schools.txt")
+#
+# bus_data[1].position
+data.schools[1].position
 """
     Get time that bus must remain at stop
 """
 function stopTime(data::SchoolBusData, stop::Stop)
-    return data.params.constant_stop_time + data.params.stop_time_per_student * stop.nStudents
+    return data.params.constant_stop_time + data.params.stop_time_per_student *
+    stop.nStudents
 end
 
+# stop_data = CSV.read("../data/input/CSCB01/Stops.txt")
+# stops = stop_data[1,:]
+# stops = data.stops[1][1]
+# stopTime(data, stops)
 """
     Get the maximum allowed travel time for a given bus stop
 """
@@ -79,6 +85,7 @@ function maxTravelTime(data::SchoolBusData, stop::Stop)
     return data.params.max_time_on_bus
 end
 
+maxTravelTime(data, data.stops[2][3]) # constant time 2700s
 """
     The current state of the greedy algorithm
     Contains:
@@ -101,6 +108,7 @@ struct GreedyState
     routeTime::Float64
 end
 
+
 """
     Greedy single-school routing heuristic
     Args:
@@ -111,6 +119,18 @@ end
     Returns:
         - all routes for the school as a Vector{Route}
 """
+true_test = trues(5)
+rand((1:5)[true_test])
+true_test[3] = false
+# after assign 3 to 0, it NEVER returns 3 in random numer
+true_test
+rand((1:5)[true_test])
+
+
+schoolID = 1
+stopID = 1
+maxRouteTime = 2400.0
+
 function greedy(data::SchoolBusData, schoolID::Int, maxRouteTime::Float64)
     routes = Route[]
     availableStops = trues(length(data.stops[schoolID]))
@@ -118,18 +138,20 @@ function greedy(data::SchoolBusData, schoolID::Int, maxRouteTime::Float64)
         # randomly select a starting stop
         startingStopID = rand((1:length(availableStops))[availableStops])
         # create initial route (select initial bus)
-        currentState = initialRoute(data, schoolID, startingStopID, length(routes)+1)
+        currentState = initialRoute(data, schoolID, startingStopID,
+                                    length(routes)+1)
         availableStops[startingStopID] = false
         while true
             bestStopID = 0
             bestInsertId = -1
             bestTimeDiff = Inf
             for stopID in collect(1:length(availableStops))[availableStops]
+                # check the students number when adding a stop
                 if (data.stops[schoolID][stopID].nStudents + currentState.nStudents <=
                     data.params.bus_capacity)
 
-                    insertId, timeDiff = bestInsertion(data, schoolID, stopID, currentState,
-                                                       maxRouteTime)
+                    insertId, timeDiff = bestInsertion(data, schoolID, stopID,
+                                                       currentState, maxRouteTime)
                     if timeDiff < bestTimeDiff
                         bestTimeDiff = timeDiff
                         bestStopID = stopID
@@ -138,8 +160,8 @@ function greedy(data::SchoolBusData, schoolID::Int, maxRouteTime::Float64)
                 end
             end
             if bestTimeDiff < Inf
-                currentState = buildRoute(data, currentState, schoolID, bestStopID,
-                                          bestInsertId)
+                currentState = buildRoute(data, currentState, schoolID,
+                                          bestStopID, bestInsertId)
                 availableStops[bestStopID] = false
             else
                 push!(routes, currentState.route)
@@ -149,6 +171,15 @@ function greedy(data::SchoolBusData, schoolID::Int, maxRouteTime::Float64)
     end
     return routes
 end
+
+
+schoolID = 1
+stopID = 1
+# maxRouteTime = 2400.0
+maxRouteTime = 2700.0
+greedy(data, schoolID, maxRouteTime)
+
+
 
 """
     Get total travel time difference when adding stop to the route, together with
@@ -164,6 +195,9 @@ end
     Returns:
         - insertID      : where we would optimally insert it
         - bestTimeDiff  : the optimal time difference imposed on the route
+   Comment:
+       when adding a new stop, if we should add in the 1st,
+       or in the middle or the last stop before school.
 """
 function bestInsertion(data::SchoolBusData,
                        schoolID::Int,
@@ -183,6 +217,9 @@ function bestInsertion(data::SchoolBusData,
         insertId = 0
     end
     # between stops
+    # loop over all the stops in the middle
+    # local search to get the best feasible route.
+
     for i = 1:(length(cs.route.stops)-1)
         timeToNextStop = traveltime(data, newStop, data.stops[schoolID][cs.route.stops[i+1]])
         timeDiff = traveltime(data, data.stops[schoolID][cs.route.stops[i]], newStop) +
@@ -234,6 +271,14 @@ end
     Returns:
         - a new GreedyState with the updated route
 """
+    # "amount of extra time students at each stop can spend on bus"
+    # slackTimes::Vector{Float64}
+    # "amount of time students at each stop are already spending on bus"
+    # stopTimes::Vector{Float64}
+    # "total time of current route"
+    # routeTime::Float64
+# the stopTImes and  slacksTimes are a vector of values
+
 function buildRoute(data::SchoolBusData,
                     cs::GreedyState,
                     schoolID::Int,
@@ -243,6 +288,7 @@ function buildRoute(data::SchoolBusData,
     school = data.schools[schoolID]
     if insertID == 0 # at the beginning
         nextStop = data.stops[schoolID][cs.route.stops[1]]
+        "amount of time students at each stop are already spending on bus"
         newStopTimeOnBus = traveltime(data, newStop, nextStop) +
                            cs.stopTimes[1] + stopTime(data,nextStop)
         timeDiff = 0.
@@ -261,12 +307,15 @@ function buildRoute(data::SchoolBusData,
                    traveltime(data, previousStop, nextStop)
         newStopTimeOnBus = timeToNextStop + cs.stopTimes[insertID+1] + stopTime(data, nextStop)
     end
-    newStopTimes = vcat(cs.stopTimes[1:insertID] + stopTime(data, newStop) + timeDiff,
+
+    # it inclueds all stops' stoptime and slackTimes
+    # if insertId == 0, then 1:insertID will aalwyas return 0.
+    newStopTimes = vcat(cs.stopTimes[1:insertID] .+ stopTime(data, newStop) .+ timeDiff,
                         [newStopTimeOnBus],
                         cs.stopTimes[(insertID+1):end])
     newStops = vcat(cs.route.stops[1:insertID], [newStopID], cs.route.stops[(insertID+1):end])
-    newSlackTimes = vcat(cs.slackTimes[1:insertID] - stopTime(data, newStop) - timeDiff,
-                         [maxTravelTime(data, newStop)] - newStopTimeOnBus,
+    newSlackTimes = vcat(cs.slackTimes[1:insertID] .- stopTime(data, newStop) .- timeDiff,
+                         [maxTravelTime(data, newStop)] .- newStopTimeOnBus,
                          cs.slackTimes[(insertID+1):end])
     # fix slack time property
     for i=eachindex(newSlackTimes)
@@ -280,6 +329,25 @@ function buildRoute(data::SchoolBusData,
                        newSlackTimes, newStopTimes, routeTime)
 end
 
+cs = initial_route_test
+println(cs)
+
+newStopID = 2
+insertID = 0
+schoolID = 1
+route_example = buildRoute(data, cs,
+ schoolID, newStopID, insertID )
+println(route_example)
+cs = route_example
+
+newStopID = 2
+insertID = 1
+schoolID = 1
+
+route_example1 = buildRoute(data, route_example,
+ schoolID, newStopID, insertID )
+ println(route_example1)
+
 """
     Create initial route for greedy
     Args:
@@ -289,6 +357,8 @@ end
         - routeID       : the ID of the route we are creating
     Returns a GreedyState object
 """
+schoolID = 1
+stopID = 1
 function initialRoute(data::SchoolBusData,
                       schoolID::Int,
                       stopID::Int,
@@ -296,11 +366,16 @@ function initialRoute(data::SchoolBusData,
     timeOnBus = traveltime(data, data.stops[schoolID][stopID], data.schools[schoolID])
     nStudents = data.stops[schoolID][stopID].nStudents
     slackTimes = [maxTravelTime(data, data.stops[schoolID][stopID]) - timeOnBus]
+    "amount of time students at each stop are already spending on bus"
     stopTimes = [timeOnBus]
-    routeTime = timeOnBus + stopTime(data, data.stops[schoolID][stopID])
+        routeTime = timeOnBus + stopTime(data, data.stops[schoolID][stopID])
     return GreedyState(Route(routeID, [stopID]), nStudents, slackTimes, stopTimes, routeTime)
 end
 
+
+data.params.max_time_on_bus
+initial_route_test = initialRoute(data,data.stops[1][1].id, data.stops[1][1].id, 1)
+println(initial_route_test)
 """
     Returns the sum of each student's travel times on this route
 """
