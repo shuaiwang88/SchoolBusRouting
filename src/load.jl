@@ -73,10 +73,10 @@ function loadSchoolsReduced(schoolsFileName::AbstractString,
     end
     return schools
 end
-
-test_school = loadSchoolsReduced("../data/input/CSCB01/Schools.txt")
-test_school[1].position
-
+#
+# test_school = loadSchoolsReduced("../data/input/CSCB01/Schools.txt")
+# test_school[1].position
+#
 function spreadBellTimes(schoolData::DataFrame, maxEffect::Real)
     intervalStart = [parseTime(get(schoolData[i,:AMEARLY])) for i=1:nrow(schoolData)]
     intervalEnd = [parseTime(get(schoolData[i,:AMLATE])) for i=1:nrow(schoolData)]
@@ -121,12 +121,12 @@ function loadPreComputedStops(stopsFileName::AbstractString, schools::Vector{Sch
     end
     return stops
 end
-
-bus_stops = loadPreComputedStops("../data/input/CSCB01/Stops.txt", test_school)
-#= stopData = CSV.read("../data/input/CSCB01/Stops.txt") =#
-
-test_school
-
+# 
+# bus_stops = loadPreComputedStops("../data/input/CSCB01/Stops.txt", test_school)
+# #= stopData = CSV.read("../data/input/CSCB01/Stops.txt") =#
+#
+# test_school
+#
 
 """
     Load synthetic benchmark dataset
