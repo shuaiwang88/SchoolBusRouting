@@ -12,6 +12,7 @@
     d:: Destination
 """
 using JuMP, Gurobi
+using JuMP, Cbc
 include("problem.jl")
 include("load.jl")
 #Sinclude("SchoolBusRouting.jl")
@@ -178,8 +179,8 @@ function greedy(data::SchoolBusData, schoolID::Int, maxRouteTime::Float64)
 end
 
 maxRouteTime = 2700.0
-a_trip = greedy(data, 1, maxRouteTime)
-a_trip[1]
+all_routes = greedy(data, 1, maxRouteTime)
+all_routes[1]
 
 
 
@@ -402,19 +403,21 @@ function sumIndividualTravelTimes(data::SchoolBusData, schoolID::Int, r::Route)
     return t
 end
 
-r = a_trip[2]
+r = all_routes[2]
 sumIndividualTravelTimes(data, 1, r)
 function sumIndividualTravelTimes(data::SchoolBusData, schoolID::Int,
                                   routes::Vector{Route})
     return sum(sumIndividualTravelTimes(data, schoolID, route) for route in routes)
 end
 
-sumIndividualTravelTimes(data, 1, a_trip)
+sumIndividualTravelTimes(data, 1, all_routes)
+
+
 """
     Returns the total travel time from the time the first student enters the bus to the time of pickup/dropoff in school
 """
 function serviceTime(data::SchoolBusData, schoolID::Int, stoplist::Vector{Int})
-
+    allStops = data.stops[schoolID]
     numStops = length(stoplist)
     t = traveltime(data, allStops[stoplist[numStops]], data.schools[schoolID])
     while numStops > 1
@@ -428,6 +431,9 @@ end
 serviceTime(data::SchoolBusData, schoolID::Int, r::Route) = serviceTime(data, schoolID, r.stops)
 
 serviceTime(data, 1, r)
+
+
+
 """
     Simple route representation : just list of IDs and associated cost
 """
@@ -469,8 +475,9 @@ function greedyCombined(data::SchoolBusData,
                         N::Int,
                         maxRouteTimeLower::Float64,
                         maxRouteTimeUpper::Float64,
-                        λ::Float64,
-                        env::Gurobi.Env=Gurobi.Env();
+                        λ::Float64;
+                        # ,
+                        # env::Gurobi.Env=Gurobi.Env();
                         args...)
     routeList = generateRoutes(data, schoolID, N, maxRouteTimeLower, maxRouteTimeUpper)
     routes = FeasibleRouteSet(data, schoolID)
@@ -480,23 +487,28 @@ function greedyCombined(data::SchoolBusData,
 end
 
 
-startRoutes = a_trip
+startRoutes = all_routes
 λ = 100.0
+
+
 function greedyCombined(data::SchoolBusData,
                         schoolID::Int,
                         startRoutes::Vector{Route},
                         N::Int,
                         maxRouteTimeLower::Float64,
                         maxRouteTimeUpper::Float64,
-                        λ::Float64,
-                        env::Gurobi.Env=Gurobi.Env();
-                        args...)
+                        λ::Float64;
+                        # change it back if gurobi is available
+                        # ,
+                        # env::Gurobi.Env=Gurobi.Env();
+                        # args...
+                        )
     routeList = generateRoutes(data, schoolID, N, maxRouteTimeLower, maxRouteTimeUpper)
     routes = FeasibleRouteSet(data, schoolID)
     addRoute!(routes, routeList)
     addRoute!(routes, collect(FeasibleRoute(data, schoolID, r) for r in startRoutes))
-    selectedRoutes = bestRoutes(data, schoolID, routes, λ, env; args...)
-    selectedRoutes = bestRoutes(data, schoolID, routes, λ, Gurobi.Env(); )
+    # selectedRoutes = bestRoutes(data, schoolID, routes, λ, env; args...)
+    selectedRoutes = bestRoutes(data, schoolID, routes, λ; )
 
     return buildSolution(data, schoolID, routes, selectedRoutes)
 end
@@ -544,8 +556,6 @@ end
 routeList = generateRoutes(data, schoolID, N, maxRouteTimeLower, maxRouteTimeUpper)
 routes_example = FeasibleRouteSet(data, schoolID)
 
-addRoute!(routes, routeList)
-
 
 """
     Add list of feasible routes to a feasible set
@@ -562,7 +572,6 @@ end
 """
 
 maxRouteTimeLower = 2400.0
-
 maxRouteTimeUpper = 3600.0
 N = 3
 function generateRoutes(data::SchoolBusData,
@@ -590,10 +599,12 @@ feasible_set = generateRoutes(data, 1, 3, maxRouteTimeLower, maxRouteTimeUpper )
     Solves the routing problem given a set of routes. (MIP)
 """
 function bestRoutes(data::SchoolBusData, schoolID::Int, routes::FeasibleRouteSet,
-                    λ::Float64, env::Gurobi.Env; args...)
+                    λ::Float64
+                    # , env::Gurobi.Env; args...
+                    )
     # model = Model(solver=GurobiSolver(env, Threads=getthreads(); args...))
 
-    model =  Model(with_optimizer(Gurobi.Optimizer))
+    # model =  Model(with_optimizer(Gurobi.Optimizer))
     model =  Model(with_optimizer(Cbc.Optimizer))
     # The binaries, whether we choose the routes
     @variable(model, r[k in 1:length(routes.list)], Bin)
@@ -604,12 +615,13 @@ function bestRoutes(data::SchoolBusData, schoolID::Int, routes::FeasibleRouteSet
         sum(r[k] for k in routes.atStop[i]) >= 1)
     # solve(model)
      JuMP.optimize!(model)
-    selectedRoutes = [k for k in 1:length(routes.list) if getvalue(r[k]) >= 0.5]
+    # selectedRoutes = [k for k in 1:length(routes.list) if getvalue(r[k]) >= 0.5]
+    selectedRoutes = [k for k in 1:length(routes.list) if JuMP.value(r[k]) >= 0.5]
     return selectedRoutes
 end
 
 
-a_sol = bestRoutes(data, 1, feasible_set, 10.0, Gurobi.Env())
+a_sol = bestRoutes(data, 1, feasible_set, 10.0)
 """
     Given a covering list of FeasibleRoutes, create correct route object
 """
