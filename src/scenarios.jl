@@ -136,6 +136,7 @@ stopID = 1
 maxRouteTime = 2700.0
 
 Random.seed!(1234)
+
 function greedy(data::SchoolBusData, schoolID::Int, maxRouteTime::Float64)
     routes = Route[]
     availableStops = trues(length(data.stops[schoolID]))
@@ -448,7 +449,7 @@ function FeasibleRoute(data::SchoolBusData, schoolID::Int, r::Route)
     return FeasibleRoute(r.stops, sumIndividualTravelTimes(data, schoolID, r))
 end
 
-FeasibleRoute(data, 1, r)
+a_feasible_route = FeasibleRoute(data, 1, r)
 
 """
     Stores a list of routes in a way that makes column generation easy
@@ -465,7 +466,7 @@ struct FeasibleRouteSet
         new(FeasibleRoute[], Set{Vector{Int}}(), [Int[] for i = 1:length(data.stops[schoolID])])
 end
 
-FeasibleRouteSet(data, 1)
+a_feasible_set = FeasibleRouteSet(data, 1)
 """
     Generate N random greedy solutions, and combines them smartly to get the best
     possible solution.
@@ -482,14 +483,16 @@ function greedyCombined(data::SchoolBusData,
     routeList = generateRoutes(data, schoolID, N, maxRouteTimeLower, maxRouteTimeUpper)
     routes = FeasibleRouteSet(data, schoolID)
     addRoute!(routes, routeList)
-    selectedRoutes = bestRoutes(data, schoolID, routes, λ, env; args...)
+    # selectedRoutes = bestRoutes(data, schoolID, routes, λ, env; args...)
+    selectedRoutes = bestRoutes(data, schoolID, routes, λ; )
+
     return buildSolution(data, schoolID, routes, selectedRoutes)
 end
 
 
 startRoutes = all_routes
 λ = 100.0
-
+N=3
 
 function greedyCombined(data::SchoolBusData,
                         schoolID::Int,
@@ -552,9 +555,17 @@ function addRoute!(routes::FeasibleRouteSet, newRoute::FeasibleRoute)
         end
     end
 end
+r = all_routes[2]
+
+newRoute = a_feasible_route
+
+routes = a_feasible_set
+routes.atStop[20:60]
 
 routeList = generateRoutes(data, schoolID, N, maxRouteTimeLower, maxRouteTimeUpper)
 routes_example = FeasibleRouteSet(data, schoolID)
+routes.atStop[20:60]
+
 
 
 """
@@ -598,6 +609,10 @@ feasible_set = generateRoutes(data, 1, 3, maxRouteTimeLower, maxRouteTimeUpper )
 """
     Solves the routing problem given a set of routes. (MIP)
 """
+
+routeList = generateRoutes(data, schoolID, N, maxRouteTimeLower, maxRouteTimeUpper)
+routes = FeasibleRouteSet(data, schoolID)
+addRoute!(routes, routeList)
 function bestRoutes(data::SchoolBusData, schoolID::Int, routes::FeasibleRouteSet,
                     λ::Float64
                     # , env::Gurobi.Env; args...
@@ -616,17 +631,18 @@ function bestRoutes(data::SchoolBusData, schoolID::Int, routes::FeasibleRouteSet
     # solve(model)
      JuMP.optimize!(model)
     # selectedRoutes = [k for k in 1:length(routes.list) if getvalue(r[k]) >= 0.5]
-    selectedRoutes = [k for k in 1:length(routes.list) if JuMP.value(r[k]) >= 0.5]
+    selectedRoutes = [k for k in 1:length(routes.list) if JuMP.value(r[k]) == 1]
     return selectedRoutes
 end
 
 
-a_sol = bestRoutes(data, 1, feasible_set, 10.0)
+selectedRoutes = bestRoutes(data, 1, routes, 100.0)
 """
     Given a covering list of FeasibleRoutes, create correct route object
 """
 function buildSolution(data::SchoolBusData, schoolID::Int,
                        routeSet::FeasibleRouteSet, selectedRoutes::Vector{Int})
+    # retrieve the route stopid and cost for the covering model route
     routes = copy(routeSet.list[selectedRoutes])
     routesAtStop = Vector{Int}[Int[] for s in data.stops[schoolID]]
     for (routeId,r) in enumerate(routes)
@@ -634,6 +650,7 @@ function buildSolution(data::SchoolBusData, schoolID::Int,
             push!(routesAtStop[stopId], routeId)
         end
     end
+    # which trip covered the stop[1:END]
     for (stopId,intersectingRoutes) in enumerate(routesAtStop)
         if length(intersectingRoutes) > 1
             newRoutes = splitRoutes(data, schoolID, routes[intersectingRoutes], stopId)
@@ -645,6 +662,11 @@ function buildSolution(data::SchoolBusData, schoolID::Int,
     return [Route(i, fr.stopIds) for (i, fr) in enumerate(routes) if length(fr.stopIds) > 0]
 end
 
+intersectingRoutes = 1
+selectedRoutes
+routeSet = routes
+
+
 """
     When several routes intersect in stopId, choose the best one to serve the stopId
     and remove the others
@@ -652,7 +674,8 @@ end
 function splitRoutes(data::SchoolBusData, schoolID::Int,
                      routes::Vector{FeasibleRoute}, stopId::Int)
     costs = collect(deletionCost(data, schoolID, route, stopId) for route in routes)
-    selectedRoute = indmax(costs)
+    # selectedRoute = indmax(costs)
+    selectedRoute = argmax(costs)
     for (routeId, route) in enumerate(routes)
         if selectedRoute != routeId
             newRouteIds = collect(s for s in route.stopIds if s != stopId)
@@ -662,32 +685,42 @@ function splitRoutes(data::SchoolBusData, schoolID::Int,
     return routes
 end
 
+stopId = 1
+intersectingRoutes = routesAtStop[stopId]
+routes =  routes[intersectingRoutes]
+route = routes[intersectingRoutes][1]
+
+
 """
     Cost of removing a stop from a route (usually negative)
     The cost is just the difference between the old travel time and the newStop
 """
+
 function deletionCost(data::SchoolBusData, schoolID::Int,
                       route::FeasibleRoute, stopId::Int)
-    stop = findfirst(route.stopIds, stopId)
+    # stop = findfirst(route.stopIds, stopId)
+    stop = findfirst(isequal(stopId), route.stopIds)
     length(route.stopIds) <= 1 && return (-Inf)
     stops = data.stops[schoolID]
     school = data.schools[schoolID]
     # remove travel time of that particular stop
     cost = 0.
     for id = stop:(length(route.stopIds)-1)
-        cost -= traveltime(data, stops[route.stopIds[id]], stops[route.stopIds[id+1]])
-        cost -= stopTime(data, stops[route.stopIds[id+1]])
+        # cost -= traveltime(data, stops[route.stopIds[id]], stops[route.stopIds[id+1]])
+        # cost -= stopTime(data, stops[route.stopIds[id+1]])
+        global cost -= traveltime(data, stops[route.stopIds[id]], stops[route.stopIds[id+1]])
+        global cost -= stopTime(data, stops[route.stopIds[id+1]])
     end
     cost -= traveltime(data, stops[route.stopIds[end]], school)
     # remove travel time effect on other stops
     if stop == length(route.stopIds)
-        cost -= (traveltime(data, stops[route.stopIds[stop-1]], stops[stopId]) +
+        global cost -= (traveltime(data, stops[route.stopIds[stop-1]], stops[stopId]) +
                  traveltime(data, stops[stopId], school) +
                  stopTime(data, stops[stopId]) -
                  traveltime(data, stops[route.stopIds[stop-1]], school)) *
                 (length(route.stopIds) - 1)
     elseif stop > 1
-        cost -= (traveltime(data, stops[route.stopIds[stop-1]], stops[stopId]) +
+        global cost -= (traveltime(data, stops[route.stopIds[stop-1]], stops[stopId]) +
                  traveltime(data, stops[stopId], stops[route.stopIds[stop+1]]) +
                  stopTime(data, stops[stopId]) -
                  traveltime(data, stops[route.stopIds[stop-1]], stops[route.stopIds[stop+1]]))*
@@ -695,6 +728,9 @@ function deletionCost(data::SchoolBusData, schoolID::Int,
     end
     return cost
 end
+
+deletionCost(data, 1, routes[1], 1 )
+
 
 """
     Contains the parameters that were used to compute a particular scenario
