@@ -11,18 +11,21 @@
     o:: Origin
     d:: Destination
 """
-using JuMP, Gurobi
+# using JuMP, Gurobi
 using JuMP, Cbc
 include("problem.jl")
 include("load.jl")
 #Sinclude("SchoolBusRouting.jl")
 import Statistics: mean
+using Base:GC
+using ProgressMeter
+
 
 data = loadSyntheticBenchmark("data/input/CSCB01/Schools.txt",
                                   "data/input/CSCB01/Stops.txt")
 
-data = loadSyntheticBenchmark("../data/input/CSCB01/Schools.txt",
-                                  "../data/input/CSCB01/Stops.txt")
+# data = loadSyntheticBenchmark("../data/input/CSCB01/Schools.txt",
+                                  # "../data/input/CSCB01/Stops.txt")
 data.stops[1]
 
 function traveltime(data::SchoolBusData, o::Point, d::Point)
@@ -123,16 +126,7 @@ end
     Returns:
         - all routes for the school as a Vector{Route}
 """
-true_test = trues(5)
-rand((1:5)[true_test])
-true_test[3] = false
-# after assign 3 to 0, it NEVER returns 3 in random numer
-true_test
-rand((1:5)[true_test])
 
-
-schoolID = 1
-stopID = 1
 maxRouteTime = 2700.0
 
 Random.seed!(1234)
@@ -179,17 +173,12 @@ function greedy(data::SchoolBusData, schoolID::Int, maxRouteTime::Float64)
     return routes
 end
 
-maxRouteTime = 2700.0
-all_routes = greedy(data, 1, maxRouteTime)
-all_routes[1]
-
-
-
-
 schoolID = 1
 stopID = 1
-# maxRouteTime = 2400.0
-greedy(data, schoolID, maxRouteTime)
+
+# maxRouteTime = 2700.0
+# all_routes = greedy(data, 1, maxRouteTime)
+# all_routes[1]
 
 
 
@@ -283,14 +272,6 @@ end
     Returns:
         - a new GreedyState with the updated route
 """
-    # "amount of extra time students at each stop can spend on bus"
-    # slackTimes::Vector{Float64}
-    # "amount of time students at each stop are already spending on bus"
-    # stopTimes::Vector{Float64}
-    # "total time of current route"
-    # routeTime::Float64
-# the stopTImes and  slacksTimes are a vector of values
-
 function buildRoute(data::SchoolBusData,
                     cs::GreedyState,
                     schoolID::Int,
@@ -341,24 +322,24 @@ function buildRoute(data::SchoolBusData,
                        newSlackTimes, newStopTimes, routeTime)
 end
 
-cs = initial_route_test
-println(cs)
+# cs = initial_route_test
+# println(cs)
 
-newStopID = 2
-insertID = 0
-schoolID = 1
-route_example = buildRoute(data, cs,
- schoolID, newStopID, insertID )
-println(route_example)
-cs = route_example
-
-newStopID = 2
-insertID = 1
-schoolID = 1
-
-route_example1 = buildRoute(data, route_example,
- schoolID, newStopID, insertID )
- println(route_example1)
+# newStopID = 2
+# insertID = 0
+# schoolID = 1
+# route_example = buildRoute(data, cs,
+#  schoolID, newStopID, insertID )
+# println(route_example)
+# cs = route_example
+#
+# newStopID = 2
+# insertID = 1
+# schoolID = 1
+#
+# route_example1 = buildRoute(data, route_example,
+#  schoolID, newStopID, insertID )
+#  println(route_example1)
 
 """
     Create initial route for greedy
@@ -385,7 +366,6 @@ function initialRoute(data::SchoolBusData,
 end
 
 
-data.params.max_time_on_bus
 initial_route_test = initialRoute(data,data.stops[1][1].id, data.stops[1][1].id, 1)
 println(initial_route_test)
 """
@@ -403,15 +383,15 @@ function sumIndividualTravelTimes(data::SchoolBusData, schoolID::Int, r::Route)
     end
     return t
 end
-
-r = all_routes[2]
-sumIndividualTravelTimes(data, 1, r)
+#
+# r = all_routes[2]
+# sumIndividualTravelTimes(data, 1, r)
 function sumIndividualTravelTimes(data::SchoolBusData, schoolID::Int,
                                   routes::Vector{Route})
     return sum(sumIndividualTravelTimes(data, schoolID, route) for route in routes)
 end
 
-sumIndividualTravelTimes(data, 1, all_routes)
+# sumIndividualTravelTimes(data, 1, all_routes)
 
 
 """
@@ -431,7 +411,7 @@ function serviceTime(data::SchoolBusData, schoolID::Int, stoplist::Vector{Int})
 end
 serviceTime(data::SchoolBusData, schoolID::Int, r::Route) = serviceTime(data, schoolID, r.stops)
 
-serviceTime(data, 1, r)
+# serviceTime(data, 1, r)
 
 
 
@@ -449,7 +429,7 @@ function FeasibleRoute(data::SchoolBusData, schoolID::Int, r::Route)
     return FeasibleRoute(r.stops, sumIndividualTravelTimes(data, schoolID, r))
 end
 
-a_feasible_route = FeasibleRoute(data, 1, r)
+# a_feasible_route = FeasibleRoute(data, 1, r)
 
 """
     Stores a list of routes in a way that makes column generation easy
@@ -466,7 +446,7 @@ struct FeasibleRouteSet
         new(FeasibleRoute[], Set{Vector{Int}}(), [Int[] for i = 1:length(data.stops[schoolID])])
 end
 
-a_feasible_set = FeasibleRouteSet(data, 1)
+# a_feasible_set = FeasibleRouteSet(data, 1)
 """
     Generate N random greedy solutions, and combines them smartly to get the best
     possible solution.
@@ -489,10 +469,7 @@ function greedyCombined(data::SchoolBusData,
     return buildSolution(data, schoolID, routes, selectedRoutes)
 end
 
-
-startRoutes = all_routes
-λ = 100.0
-N=3
+# greedyCombined(data, schoolID, N, maxRouteTimeLower, maxRouteTimeUpper, λ  )
 
 function greedyCombined(data::SchoolBusData,
                         schoolID::Int,
@@ -504,7 +481,7 @@ function greedyCombined(data::SchoolBusData,
                         # change it back if gurobi is available
                         # ,
                         # env::Gurobi.Env=Gurobi.Env();
-                        # args...
+                        args...
                         )
     routeList = generateRoutes(data, schoolID, N, maxRouteTimeLower, maxRouteTimeUpper)
     routes = FeasibleRouteSet(data, schoolID)
@@ -516,6 +493,11 @@ function greedyCombined(data::SchoolBusData,
     return buildSolution(data, schoolID, routes, selectedRoutes)
 end
 
+
+# startRoutes =  greedy(data, schoolID, Inf)
+
+# greedyCombined(data, schoolID, startRoutes, N, maxRouteTimeLower, maxRouteTimeUpper, λ  )
+
 """
     Same as greedy combined, but iterates it to keep improving the best solution
 """
@@ -526,22 +508,29 @@ function greedyCombinedIterated(data::SchoolBusData,
                                 nGreedy::Int,
                                 nIteration::Int,
                                 λ::Float64;
-                                verbose::Bool=false,
-                                args...)
-    env = Gurobi.Env()
+                                verbose::Bool=false
+                                # ,
+                                # args...
+                                )
+    # env = Gurobi.Env()
     routes = greedy(data, schoolID, Inf)
     verbose && @printf("Iteration 0: %d buses, %2.fs\n", length(routes),
                         sumIndividualTravelTimes(data, schoolID, routes))
     for i=1:nIteration
         routes = greedyCombined(data, schoolID, routes, nGreedy,
-                                maxRouteTimeLower, maxRouteTimeUpper, λ, env; args...)
+                                maxRouteTimeLower, maxRouteTimeUpper, λ
+                                # , env; args...
+                                )
+
         verbose && @printf("Iteration %d: %d buses, %2.fs\n", i, length(routes),
                            sumIndividualTravelTimes(data, schoolID, routes))
     end
-    gc()
+    # gc()
+    GC.gc()
     return routes
  end
 
+# a = greedyCombinedIterated(data, schoolID, maxRouteTimeLower, maxRouteTimeUpper,10, 500, 100.0; verbose = false )
 """
     Add feasible route to a feasible set
 """
@@ -555,16 +544,16 @@ function addRoute!(routes::FeasibleRouteSet, newRoute::FeasibleRoute)
         end
     end
 end
-r = all_routes[2]
-
-newRoute = a_feasible_route
-
-routes = a_feasible_set
-routes.atStop[20:60]
-
-routeList = generateRoutes(data, schoolID, N, maxRouteTimeLower, maxRouteTimeUpper)
-routes_example = FeasibleRouteSet(data, schoolID)
-routes.atStop[20:60]
+# r = all_routes[2]
+#
+# newRoute = a_feasible_route
+#
+# routes = a_feasible_set
+# routes.atStop[20:60]
+#
+# routeList = generateRoutes(data, schoolID, N, maxRouteTimeLower, maxRouteTimeUpper)
+# routes_example = FeasibleRouteSet(data, schoolID)
+# routes.atStop[20:60]
 
 
 
@@ -581,10 +570,10 @@ end
 """
     Generate N sets of Routes using the greedy heuristic.
 """
-
-maxRouteTimeLower = 2400.0
-maxRouteTimeUpper = 3600.0
-N = 3
+#
+# maxRouteTimeLower = 2400.0
+# maxRouteTimeUpper = 3600.0
+# N = 3
 function generateRoutes(data::SchoolBusData,
                         schoolID::Int,
                         N::Int,
@@ -603,16 +592,16 @@ function generateRoutes(data::SchoolBusData,
     return routes
 end
 
-feasible_set = generateRoutes(data, 1, 3, maxRouteTimeLower, maxRouteTimeUpper )
+# feasible_set = generateRoutes(data, 1, 3, maxRouteTimeLower, maxRouteTimeUpper )
 
 
 """
     Solves the routing problem given a set of routes. (MIP)
 """
 
-routeList = generateRoutes(data, schoolID, N, maxRouteTimeLower, maxRouteTimeUpper)
-routes = FeasibleRouteSet(data, schoolID)
-addRoute!(routes, routeList)
+# routeList = generateRoutes(data, schoolID, N, maxRouteTimeLower, maxRouteTimeUpper)
+# routes = FeasibleRouteSet(data, schoolID)
+# addRoute!(routes, routeList)
 function bestRoutes(data::SchoolBusData, schoolID::Int, routes::FeasibleRouteSet,
                     λ::Float64
                     # , env::Gurobi.Env; args...
@@ -636,7 +625,7 @@ function bestRoutes(data::SchoolBusData, schoolID::Int, routes::FeasibleRouteSet
 end
 
 
-selectedRoutes = bestRoutes(data, 1, routes, 100.0)
+# selectedRoutes = bestRoutes(data, 1, routes, 100.0)
 """
     Given a covering list of FeasibleRoutes, create correct route object
 """
@@ -659,14 +648,13 @@ function buildSolution(data::SchoolBusData, schoolID::Int,
             end
         end
     end
+    # remove the feasieble route with 0 stop because the previous deleting stop
     return [Route(i, fr.stopIds) for (i, fr) in enumerate(routes) if length(fr.stopIds) > 0]
 end
-
-intersectingRoutes = 1
-selectedRoutes
-routeSet = routes
-
-
+#
+# routeSet = routes
+# routeSet.list[21]
+# routes[21]
 """
     When several routes intersect in stopId, choose the best one to serve the stopId
     and remove the others
@@ -675,7 +663,7 @@ function splitRoutes(data::SchoolBusData, schoolID::Int,
                      routes::Vector{FeasibleRoute}, stopId::Int)
     costs = collect(deletionCost(data, schoolID, route, stopId) for route in routes)
     # selectedRoute = indmax(costs)
-    selectedRoute = argmax(costs)
+    selectedRoute = argmax(costs) # max(-20, -1), lower means by reomoveing the stop, it saves more time -20
     for (routeId, route) in enumerate(routes)
         if selectedRoute != routeId
             newRouteIds = collect(s for s in route.stopIds if s != stopId)
@@ -684,12 +672,13 @@ function splitRoutes(data::SchoolBusData, schoolID::Int,
     end
     return routes
 end
-
-stopId = 1
-intersectingRoutes = routesAtStop[stopId]
-routes =  routes[intersectingRoutes]
-route = routes[intersectingRoutes][1]
-
+#
+# stopId = 1
+# intersectingRoutes = routesAtStop[stopId]
+# routes =  routeSet[intersectingRoutes]
+# # route = routes[intersectingRoutes][1]
+#
+# newRoutes =  splitRoutes(data, 1, routes, stopId)
 
 """
     Cost of removing a stop from a route (usually negative)
@@ -729,7 +718,7 @@ function deletionCost(data::SchoolBusData, schoolID::Int,
     return cost
 end
 
-deletionCost(data, 1, routes[1], 1 )
+# deletionCost(data, 1, routes[1], 1 )
 
 
 """
@@ -757,7 +746,11 @@ function ScenarioParameters(;maxRouteTimeLower=Inf,
                             nIterations::Int=10)
     return ScenarioParameters(maxRouteTimeLower, maxRouteTimeUpper, nGreedy, λ, nIterations)
 end
+#
+# nGreedy = 10
+# nIteration = 10
 
+ScenarioParameters()
 """
     Compute scenario
 """
@@ -815,3 +808,7 @@ function loadroutingscenarios!(data, scenariolist)
     data.withRoutingScenarios = true
     return data
 end
+#
+# scenariolist = []
+#
+# loadroutingscenarios!(data, scenariolist)
