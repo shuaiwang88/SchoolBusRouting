@@ -1,4 +1,5 @@
 using SchoolBusRouting, JLD, DataFrames, CSV
+include("SchoolBusRouting.jl")
 
 # experiment parameters
 experiments = vcat(["RSRB0$i" for i = 1:8], ["CSCB0$i" for i = 1:8]);
@@ -11,11 +12,16 @@ exp_id = Int[]; benchmark = AbstractString[]; exp_name = AbstractString[];
 max_riding_time = Float64[]; nbuses = Int[]; iter = Int[];
 
 counter = 0
+
+experiment = "RSRB01"
+maxtime = 2700.0
 for maxtime in (maxtimes), experiment in (experiments)
 	# load data from ASCII files
 	PATH = "$(Pkg.dir("SchoolBusRouting"))/data/input"
 	data = SchoolBusRouting.loadSyntheticBenchmark("$PATH/$experiment/Schools.txt",
 									  "$PATH/$experiment/Stops.txt")
+	data = SchoolBusRouting.loadSyntheticBenchmark("data/input/CSCB01/Schools.txt",
+						 "data/input/CSCB01/Stops.txt")
 	data.params.max_time_on_bus = maxtime
 	println("***********************************************")
 	println("$experiment - $maxtime")
@@ -35,6 +41,12 @@ for maxtime in (maxtimes), experiment in (experiments)
 											 maxRouteTimeUpper=maxtime+2000,
 											 nGreedy=nGreedy, λ=λ,
 											 nIterations=nIterations) for λ in λs]
+
+
+			data.ScenarioParameters(maxRouteTimeLower=maxtime-2000,
+											 maxRouteTimeUpper=maxtime+2000,
+											 nGreedy=nGreedy, λ=λ,
+											 nIterations=nIterations)
 			srand(i)
 			scenariolist = SchoolBusRouting.computescenarios(data, params; OutputFlag=0,
 			                                    MIPGap=ifelse(maxtime < 4000, 1e-4, 0.05),
@@ -58,7 +70,7 @@ for maxtime in (maxtimes), experiment in (experiments)
 			servicetimes = [Float64[] for school in data.schools]
 			found = false
 			for line in readlines("$(Pkg.dir("SchoolBusRouting"))/data/routes/$(experiment[1:4])$(Int(round(maxtime)))/SBRP_$experiment.txt")
-				if ((line != "NODE_COORD_SECTION" && !found) || 
+				if ((line != "NODE_COORD_SECTION" && !found) ||
 					(split(line, ":")[1] == "DIMENSION" && found))
 					found = false
 					continue
