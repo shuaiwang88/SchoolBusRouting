@@ -15,6 +15,7 @@ counter = 0
 
 experiment = "RSRB01"
 maxtime = 2700.0
+condition = "many"
 for maxtime in (maxtimes), experiment in (experiments)
 	# load data from ASCII files
 	PATH = "$(Pkg.dir("SchoolBusRouting"))/data/input"
@@ -31,26 +32,34 @@ for maxtime in (maxtimes), experiment in (experiments)
 		params = []
 		if condition in ["many", "combined"]
 			# many scenarios
-			λs = [1e2, 5e2, 5e3, 1e4, 5e4, 1e5, 5e5, 1e6];
+			# λs = [1e2, 5e2, 5e3, 1e4, 5e4, 1e5, 5e5, 1e6];
+			λs = [1e2, 5e2, 1e3, 2e3, 5e3];
 			nGreedy = 20; nIterations = 80;
 			if experiment == "RSRB02" && maxtime < 4000
-				λs = [1e2, 5e2, 1e3, 2e3, 5e3, 7e3, 1e4, 5e4, 1e5, 5e5, 1e6, 5e6, 1e7, 2e7];
+				# λs = [1e2, 5e2, 1e3, 2e3, 5e3, 7e3, 1e4, 5e4, 1e5, 5e5, 1e6, 5e6, 1e7, 2e7];
 				nGreedy = 40; nIterations = 150;
 			end
 			params = [SchoolBusRouting.ScenarioParameters(maxRouteTimeLower=maxtime-2000,
 											 maxRouteTimeUpper=maxtime+2000,
 											 nGreedy=nGreedy, λ=λ,
 											 nIterations=nIterations) for λ in λs]
-
-
-			data.ScenarioParameters(maxRouteTimeLower=maxtime-2000,
+            params = [ScenarioParameters(maxRouteTimeLower=maxtime-2000,
 											 maxRouteTimeUpper=maxtime+2000,
 											 nGreedy=nGreedy, λ=λ,
-											 nIterations=nIterations)
-			srand(i)
-			scenariolist = SchoolBusRouting.computescenarios(data, params; OutputFlag=0,
-			                                    MIPGap=ifelse(maxtime < 4000, 1e-4, 0.05),
-			                                    TimeLimit=ifelse(maxtime < 4000, 90, 30));
+											 nIterations=nIterations) for λ in λs]
+			# srand(i)
+			Random.seed!(i)
+			scenariolist = computescenarios(data, params;
+			                               ## Gurobi arguments
+			 									# OutputFlag=0,
+			                                    # MIPGap=ifelse(maxtime < 4000, 1e-4, 0.05),
+			                                    # TimeLimit=ifelse(maxtime < 4000, 90, 30)
+                                           ## Cbc arguments
+												logLevel=1,
+			                                    allowableGap=ifelse(maxtime < 4000, 1e-4, 0.05),
+			                                    seconds=ifelse(maxtime < 4000, 90, 30),
+												threads = 8
+												);
 		end
 		if condition == "one"
 			params = [SchoolBusRouting.ScenarioParameters(maxRouteTimeLower=maxtime-2000,
@@ -59,9 +68,17 @@ for maxtime in (maxtimes), experiment in (experiments)
 											 nIterations=ifelse(maxtime < 4000, 120, 100)
 											 ) for λ in [1e8]]
 			srand(i)
-			scenariolist = SchoolBusRouting.computescenarios(data, params; OutputFlag=0,
-			                                    MIPGap=ifelse(maxtime < 4000, 1e-4, 0.05),
-			                                    TimeLimit=ifelse(maxtime < 4000, 90, 30));
+			scenariolist = SchoolBusRouting.computescenarios(data, params;
+			                               ## Gurobi arguments
+			 									# OutputFlag=0,
+			                                    # MIPGap=ifelse(maxtime < 4000, 1e-4, 0.05),
+			                                    # TimeLimit=ifelse(maxtime < 4000, 90, 30)
+                                           ## Cbc arguments
+												logLevel=1,
+			                                    allowableGap=ifelse(maxtime < 4000, 1e-4, 0.05),
+			                                    seconds=ifelse(maxtime < 4000, 90, 30),
+												threads = 8
+												);
 		end
 		if condition in ["Chen", "combined"]
 			mapping = Dict(stop.originalId => (stop.schoolId,

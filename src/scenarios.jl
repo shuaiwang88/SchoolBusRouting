@@ -19,6 +19,7 @@ include("load.jl")
 import Statistics: mean
 using Base:GC
 using ProgressMeter
+using Random
 
 
 data = loadSyntheticBenchmark("data/input/CSCB01/Schools.txt",
@@ -464,7 +465,7 @@ function greedyCombined(data::SchoolBusData,
     routes = FeasibleRouteSet(data, schoolID)
     addRoute!(routes, routeList)
     # selectedRoutes = bestRoutes(data, schoolID, routes, λ, env; args...)
-    selectedRoutes = bestRoutes(data, schoolID, routes, λ; )
+    selectedRoutes = bestRoutes(data, schoolID, routes, λ;args... )
 
     return buildSolution(data, schoolID, routes, selectedRoutes)
 end
@@ -488,7 +489,7 @@ function greedyCombined(data::SchoolBusData,
     addRoute!(routes, routeList)
     addRoute!(routes, collect(FeasibleRoute(data, schoolID, r) for r in startRoutes))
     # selectedRoutes = bestRoutes(data, schoolID, routes, λ, env; args...)
-    selectedRoutes = bestRoutes(data, schoolID, routes, λ; )
+    selectedRoutes = bestRoutes(data, schoolID, routes, λ;args... )
 
     return buildSolution(data, schoolID, routes, selectedRoutes)
 end
@@ -508,9 +509,9 @@ function greedyCombinedIterated(data::SchoolBusData,
                                 nGreedy::Int,
                                 nIteration::Int,
                                 λ::Float64;
-                                verbose::Bool=false
+                                verbose::Bool=false,
                                 # ,
-                                # args...
+                                args...
                                 )
     # env = Gurobi.Env()
     routes = greedy(data, schoolID, Inf)
@@ -518,8 +519,9 @@ function greedyCombinedIterated(data::SchoolBusData,
                         sumIndividualTravelTimes(data, schoolID, routes))
     for i=1:nIteration
         routes = greedyCombined(data, schoolID, routes, nGreedy,
-                                maxRouteTimeLower, maxRouteTimeUpper, λ
-                                # , env; args...
+                                maxRouteTimeLower, maxRouteTimeUpper, λ;
+                                # , env;
+                                args...
                                 )
 
         verbose && @printf("Iteration %d: %d buses, %2.fs\n", i, length(routes),
@@ -530,7 +532,7 @@ function greedyCombinedIterated(data::SchoolBusData,
     return routes
  end
 
-# a = greedyCombinedIterated(data, schoolID, maxRouteTimeLower, maxRouteTimeUpper,10, 500, 100.0; verbose = false )
+a = greedyCombinedIterated(data, schoolID, 1700.0, 2700.0,10, 500, 100.0; verbose = false, loglevel = 1,seconds = 10, threads = 8, allowableGap = 0.5 )
 """
     Add feasible route to a feasible set
 """
@@ -599,17 +601,18 @@ end
     Solves the routing problem given a set of routes. (MIP)
 """
 
-# routeList = generateRoutes(data, schoolID, N, maxRouteTimeLower, maxRouteTimeUpper)
-# routes = FeasibleRouteSet(data, schoolID)
-# addRoute!(routes, routeList)
+routeList = generateRoutes(data, schoolID, 3, 1700.0, 2700.0)
+routes = FeasibleRouteSet(data, schoolID)
+addRoute!(routes, routeList)
 function bestRoutes(data::SchoolBusData, schoolID::Int, routes::FeasibleRouteSet,
-                    λ::Float64
-                    # , env::Gurobi.Env; args...
+                    λ::Float64;
+                    # , env::Gurobi.Env;
+                     args...
                     )
     # model = Model(solver=GurobiSolver(env, Threads=getthreads(); args...))
 
-    # model =  Model(with_optimizer(Gurobi.Optimizer))
-    model =  Model(with_optimizer(Cbc.Optimizer))
+    # model =  Model(with_optimizer(Gurobi.Optimizer; args...))
+    model =  Model(with_optimizer(Cbc.Optimizer; args...))
     # The binaries, whether we choose the routes
     @variable(model, r[k in 1:length(routes.list)], Bin)
     # Minimize the number of buses first, then the travel time
@@ -625,7 +628,7 @@ function bestRoutes(data::SchoolBusData, schoolID::Int, routes::FeasibleRouteSet
 end
 
 
-# selectedRoutes = bestRoutes(data, 1, routes, 100.0)
+selectedRoutes = bestRoutes(data, 1, routes, 100.0; seconds = 1)
 """
     Given a covering list of FeasibleRoutes, create correct route object
 """
@@ -746,11 +749,31 @@ function ScenarioParameters(;maxRouteTimeLower=Inf,
                             nIterations::Int=10)
     return ScenarioParameters(maxRouteTimeLower, maxRouteTimeUpper, nGreedy, λ, nIterations)
 end
+
+λs = [1e2, 5e2, 1e3, 2e3, 5e3];
+
+maxtime = 2700.0
+nGreedy  = 10
+params = [ScenarioParameters(maxRouteTimeLower=maxtime-2000,
+                                 maxRouteTimeUpper=maxtime+2000,
+                                 nGreedy=nGreedy, λ=λ,
+                                 nIterations=10) for λ in λs]
+scenariolist = computescenarios(data, params;
+                            ## Gurobi arguments
+                                 # OutputFlag=0,
+                                 # MIPGap=ifelse(maxtime < 4000, 1e-4, 0.05),
+                                 # TimeLimit=ifelse(maxtime < 4000, 90, 30)
+                            ## Cbc arguments
+                                 logLevel=1,
+                                 allowableGap=ifelse(maxtime < 4000, 1e-4, 0.05),
+                                 seconds=ifelse(maxtime < 4000, 90, 30),
+                                 threads = 8
+                                 );
 #
 # nGreedy = 10
 # nIteration = 10
-
-ScenarioParameters()
+#
+# ScenarioParameters()
 """
     Compute scenario
 """
@@ -793,6 +816,7 @@ function loadroutingscenarios!(data, scenariolist)
         (scenario, routelist) = scenariolist[k]
         for (i,route) in enumerate(routelist)
             idx = findfirst(x -> x.stops == route.stops, routes[scenario.school])
+            show(i)
             if idx == 0 # need to add new route and update its id
                 scenario.routeIDs[i] = length(routes[scenario.school]) + 1
                 push!(routes[scenario.school],
@@ -808,7 +832,14 @@ function loadroutingscenarios!(data, scenariolist)
     data.withRoutingScenarios = true
     return data
 end
-#
+
+k = 11
+    for (i,route) in enumerate(routelist)
+        println((i,route))
+    end
+i = 1
+route = Route(1, [67])
+data1 = loadroutingscenarios!(data, scenariolist);
 # scenariolist = []
 #
 # loadroutingscenarios!(data, scenariolist)

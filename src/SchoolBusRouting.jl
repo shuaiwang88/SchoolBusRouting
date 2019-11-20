@@ -9,7 +9,8 @@ module SchoolBusRouting
 using DataFrames, CSV
 using LightGraphs, NearestNeighbors, ProgressMeter
 using Geodesy, Colors
-using JuMP, Gurobi
+# using JuMP, Gurobi
+using JuMP, Cbc
 import JLD
 import Base: convert
 #using SFML, Plots
@@ -18,9 +19,9 @@ include("problem.jl")
 include("load.jl")
 include("scenarios.jl")
 include("selection.jl")
-include("tests.jl")
-include("output.jl")
-include("lbh.jl")
+# include("tests.jl")
+# include("output.jl")
+# include("lbh.jl")
 #include("viz.jl")
 #include("synthetic.jl")
 

@@ -37,7 +37,7 @@ function loadSchoolsReduced(schoolsFileName::AbstractString,
                             randomStart::Bool=false, seed::Int=-1,
                             spreadStart::Bool=false)
     if seed < 0
-        # srand()
+        #srand()
         Random.seed!()
     else
         #srand(seed)
@@ -121,7 +121,7 @@ function loadPreComputedStops(stopsFileName::AbstractString, schools::Vector{Sch
     end
     return stops
 end
-# 
+#
 # bus_stops = loadPreComputedStops("../data/input/CSCB01/Stops.txt", test_school)
 # #= stopData = CSV.read("../data/input/CSCB01/Stops.txt") =#
 #
