@@ -11,7 +11,7 @@
     o:: Origin
     d:: Destination
 """
-# using JuMP, Gurobi
+ # using JuMP, Gurobi
 using JuMP, Cbc
 include("problem.jl")
 include("load.jl")
@@ -769,11 +769,6 @@ scenariolist = computescenarios(data, params;
                                  seconds=ifelse(maxtime < 4000, 90, 30),
                                  threads = 8
                                  );
-#
-# nGreedy = 10
-# nIteration = 10
-#
-# ScenarioParameters()
 """
     Compute scenario
 """
@@ -788,6 +783,12 @@ end
 
 """
     Compute multiple scenarios
+    tocompute:
+30-element Array{Tuple{School,Int64,ScenarioParameters},1}:
+ (School 5 - 200005, 4, ScenarioParameters(700.0, 4700.0, 10, 2000.0, 10))
+ (School 4 - 200004, 3, ScenarioParameters(700.0, 4700.0, 10, 1000.0, 10))
+ (School 4 - 200004, 2, ScenarioParameters(700.0, 4700.0, 10, 500.0, 10))
+ (School 5 - 200005, 2, ScenarioParameters(700.0, 4700.0, 10, 500.0, 10))
 """
 function computescenarios(data, params; args...)
     tocompute = shuffle!(vec([(school,paramid,param) for school in data.schools, (paramid,param) in enumerate(params)]))
@@ -809,15 +810,15 @@ end
 """
 function loadroutingscenarios!(data, scenariolist)
     scenarios = [Scenario[] for school in data.schools]
-    routes = [Route[] for school in data.schools]
+    routes = [Route[] for school in data.schools] # each school has a set of routes
     ids = vec([(scenario.school, scenario.id) for (scenario, routelist) in scenariolist])
 
     for k in sortperm(ids)
         (scenario, routelist) = scenariolist[k]
         for (i,route) in enumerate(routelist)
             idx = findfirst(x -> x.stops == route.stops, routes[scenario.school])
-            show(i)
-            if idx == 0 # need to add new route and update its id
+            # if idx == 0 # need to add new route and update its id
+            if idx == nothing # need to add new route and update its id
                 scenario.routeIDs[i] = length(routes[scenario.school]) + 1
                 push!(routes[scenario.school],
                       Route(length(routes[scenario.school]) + 1, route.stops))
@@ -834,12 +835,9 @@ function loadroutingscenarios!(data, scenariolist)
 end
 
 k = 11
-    for (i,route) in enumerate(routelist)
-        println((i,route))
-    end
 i = 1
 route = Route(1, [67])
-data1 = loadroutingscenarios!(data, scenariolist);
-# scenariolist = []
-#
-# loadroutingscenarios!(data, scenariolist)
+data = loadroutingscenarios!(data, scenariolist);
+
+data.scenarios[1]
+data.routes[1][9]

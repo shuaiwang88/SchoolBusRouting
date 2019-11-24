@@ -3,7 +3,7 @@
 ##      Build graph for scenario-based network flow method to solve full problem
 ## Authors: Arthur Delarue, Sébastien Martin, 2018
 ###################################################
-
+using LightGraphs
 """
     Represents a node in scenario graph
     Required attributes:
@@ -12,7 +12,8 @@
 abstract type ScenarioNode end
 
 """
-    Node in scenario graph, represents buses arriving at the beginning of a route for a school
+    Node in scenario graph, represents buses arriving at the beginning of
+     a route for a school
 """
 struct ArrivalNode <: ScenarioNode
     id::Int
@@ -61,7 +62,7 @@ mutable struct ScenarioGraph
     nodes::Vector{ScenarioNode}
     "dictionary mapping node type to node ids"
     nodeTypes::Dict{Symbol,Vector{Int}}
-    "dictionary mapping pairs of nodes to costs"
+    "dictionary mapping pairs of nodes to co  sts"
     costs::Dict{Tuple{Int,Int}, Float64}
     "number of scenarios per school"
     numScenarios::Vector{Int}
@@ -78,14 +79,14 @@ function buildScenarioGraph(data::SchoolBusData)
     nodes = ScenarioNode[]
     nodeTypes = Dict(elt => Int[] for elt in [:YardNode, :ArrivalNode, :DepartureNode])
     # get the yard nodes
-    yardNodes, currentNodeId = getYardNodes!(data, nodeTypes)
+    yardNodes, currentNodeId1 = getYardNodes!(data, nodeTypes)
     append!(nodes, yardNodes)
     numScenarios = [length(data.scenarios[sID]) for sID=eachindex(data.schools)]
     for schoolID = eachindex(data.schools)
         for scenarioNum = 1:numScenarios[schoolID]
-            schoolNodes, currentNodeId = getSchoolScenarioNodes!(data, schoolID,
-                                                                 currentNodeId, scenarioNum,
-                                                                 nodeTypes)
+            #shuai
+            schoolNodes, currentNodeId1 = getSchoolScenarioNodes!(data, schoolID,
+                                            currentNodeId1, scenarioNum, nodeTypes)
             append!(nodes, schoolNodes)
         end
     end
@@ -105,7 +106,21 @@ function buildScenarioGraph(data::SchoolBusData)
     end
     return ScenarioGraph(graph, nodes, nodeTypes, costs, numScenarios)
 end
+graph_test = buildScenarioGraph(data)
+unique(graph_test.nodeTypes[:ArrivalNode])
 
+type1 = :DepartureNode
+type2 = :ArrivalNode
+type2  = :YardNode
+
+
+unique(nodeTypes[type1])
+
+idx1=42
+idx2=491
+
+node1 = nodes[idx1]
+node2 = nodes[idx2]
 """
     Get nodes for one scenario for a given school
     Args:
@@ -118,6 +133,7 @@ end
         the nodes for that scenario
         the id of the current node (to be passed along to the next call)
 """
+
 function getSchoolScenarioNodes!(data::SchoolBusData, schoolID::Int,
                                  currentNodeId::Int, scenarioNum::Int,
                                  nodeTypes::Dict{Symbol, Vector{Int}})
@@ -132,11 +148,21 @@ function getSchoolScenarioNodes!(data::SchoolBusData, schoolID::Int,
         push!(nodeTypes[:ArrivalNode], currentNodeId)
         currentNodeId += 1
     end
-    push!(schoolNodes, DepartureNode(currentNodeId,schoolID,length(scenario.routeIDs),scenarioNum))
+    # departureNode in scenario graph, represents buses departing from a school
+    push!(schoolNodes, DepartureNode(currentNodeId,schoolID,
+                                    length(scenario.routeIDs),scenarioNum))
     push!(nodeTypes[:DepartureNode], currentNodeId)
     currentNodeId += 1
     return schoolNodes, currentNodeId
 end
+scenario = data.scenarios[schoolID][1]
+# nodeTypes = Dict(elt => Int[] for elt in [:YardNode, :ArrivalNode, :DepartureNode])
+# scenarioNum = 1
+# schoolID = 1
+# routeID = 22
+# currentNodeId = 1
+# x,y = getSchoolScenarioNodes!(data, schoolID, 1, 1, nodeTypes)
+
 
 """
     Get nodes for yards
@@ -151,6 +177,8 @@ function getYardNodes!(data::SchoolBusData, nodeTypes::Dict{Symbol,Vector{Int}})
     end
     return yardNodes, nodeId
 end
+# nodeTypes = Dict(elt => Int[] for elt in [:YardNode, :ArrivalNode, :DepartureNode])
+# getYardNodes!(data, nodeTypes)
 
 """
     Decide whether a bus from one school can serve another school (time feasible)
@@ -164,6 +192,13 @@ function isFeasibleInTime(data::SchoolBusData, school1::Int, school2::Int,
             routeTime + data.schools[school2].dwelltime <= data.schools[school2].starttime)
 end
 
+isFeasibleInTime(data, node1.school, node2.school,
+                   node2.route, node2.serviceTime)
+# school1 = node1.school
+# school2 = node2.school
+# route   = node2.route
+# routeTime = node2.serviceTime
+#
 """
     Add edge between two nodes and compute cost of the edge
 """
@@ -197,6 +232,7 @@ function createEdge!(data::SchoolBusData, graph::DiGraph,
     end
     return edgeWasAdded, 0.
 end
+# the objective is to minimize the total flow out of the yard node y  shuai
 function createEdge!(data::SchoolBusData, graph::DiGraph,
                      node1::YardNode, node2::ArrivalNode)
     return add_edge!(graph, node1.id, node2.id), 1.
@@ -207,14 +243,22 @@ end
     Wrapper function replacing LightGraphs.out_edges since it was deprecated
     Returns a generator with the desired edges
 """
+# outdegree
 function edges_out(graph::DiGraph, node::Int)
     return (Edge(node, j) for j in outneighbors(graph, node))
 end
 
+node = graph_test.nodeTypes[:DepartureNode][1]
+graph = graph_test.graph
+a = edges_out(graph_test.graph, node)
+b = outdegree(graph_test.graph, node)
+
+j = 134
 """
     Wrapper function replacing LightGraphs.in_edges since it was deprecated
     Returns a generator with the desired edges
 """
+#indegree
 function edges_in(graph::DiGraph, node::Int)
     return (Edge(j, node) for j in inneighbors(graph, node))
 end
@@ -231,7 +275,8 @@ end
 function selectScenario(data::SchoolBusData, sg::ScenarioGraph; args...)
     edgeCost(edge::Edge) = sg.costs[src(edge), dst(edge)]
 
-    model = Model(solver = GurobiSolver(Threads=getthreads(), MIPGap=0.01; args...))
+    # model = Model(solver = GurobiSolver(Threads=getthreads(), MIPGap=0.01; args...)) #shuai
+    model =  Model(with_optimizer(Cbc.Optimizer, threads = 8, allowableGap = 0.01;args...))
 
     @variable(model, useScenario[i=eachindex(data.schools), j=1:sg.numScenarios[i]], Bin)
     @variable(model, busFlow[edge=edges(sg.graph)] >= 0, Int)
@@ -251,12 +296,17 @@ function selectScenario(data::SchoolBusData, sg::ScenarioGraph; args...)
 
     @objective(model, Min, sum(busFlow[edge] * edgeCost(edge) for edge=edges(sg.graph)))
 
-    status = solve(model)
-    scenarioUsed = [indmax(getvalue(useScenario[i,j])
-                           for j=1:sg.numScenarios[i]) for i=eachindex(sg.numScenarios)]
+    # status = solve(model) #shuai
+    JuMP.optimize!(model)
+    # scenarioUsed = [indmax(getvalue(useScenario[i,j])
+    #                            for j=1:sg.numScenarios[i]) for i=eachindex(sg.numScenarios)]
+    scenarioUsed =  [argmax([JuMP.value(useScenario[i,j]) for j=1:sg.numScenarios[i]]) for i=eachindex(sg.numScenarios)]
     return scenarioUsed
 end
 
+test_used_scenario = selectScenario(data, graph_test)
+sg = graph_test
+print(sg.graph)
 """
     Represents node in FullRoutingGraph
     Mandatory attributes:
@@ -336,6 +386,7 @@ function buildFullRoutingGraph(data::SchoolBusData, usedScenario::Vector{Int})
     return FullRoutingGraph(graph, nodes, costs)
 end
 
+test_full_graph =  buildFullRoutingGraph(data, test_used_scenario)
 """
     Method creates an edge between two nodes, with one function per type of node pair
 """
