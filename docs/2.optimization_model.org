@@ -132,10 +132,10 @@ $$ min \sum_{c \in C} z_c + \beta \sum_{p \in P_s} \sum_{c \in C_p} d_{p,c} y_{p
 subject to:
 
 1. student p is assigned to c only if stop c is selected for school s.
-   $$y_{p,c} \leq z_c,  \forall p \in P_s , c \in C_p$$
+   $$y_{p,c} \leq z_c,\quad  \forall p \in P_s , c \in C_p$$
    
 2. Each student is assigned to 1 stop
-   $$\sum_{c \in C_p} y_{p,c} = 1 ,\forall p \in P_s $$
+   $$\sum_{c \in C_p} y_{p,c} = 1 ,\quad \forall p \in P_s $$
 
 Where $\beta$ is the trade-off of the total number of stops and walking
 distance.
@@ -221,7 +221,7 @@ Stop c4 can be served by two differents trip 3 and 5, so $I(T_c) = I(T_4) = {3,5
      
 **** Constraints
       every stop must be served by at least one trip. 
-     $$\sum_{i \in I(T_c)} r_i \ge 1, \forall c \in C_S$$ 
+     $$\sum_{i \in I(T_c)} r_i \ge 1, \quad \forall c \in C_S$$ 
     
      where, for each trip $i$ in $T_s$, $\Theta_i = \sum_{p:c_p \in C_i}
      \theta_p^{(i)}$, where $C_i$ reprents the list of stops served by the
@@ -276,11 +276,11 @@ $$ minimize \sum_{s \in S}\sum_{h=1}^{h_S}\sum_{R \in \mathcal{T}_S^h}f_y^{\rho_
 *** Constraints
      flows along all arcs must be integral.
      1. $$f_{a_{S,h}}^{\rho_{S,h,R}}= z_{S,h},  S \in \mathcal{S}, 1\leq h \in h_s, R \in \mathcal{T}_h^S$$
-     2. $$\mathcal{Z}_{S,h} \in \{0,1\}, \forall S \in S, 1 \le h \le h_S$$
-     3. $$\sum_{h=1}^{h_S}Z_{S,h} = 1, \forall S \in \mathcal{S}$$
+     2. $$\mathcal{Z}_{S,h} \in \{0,1\}, \quad \forall S \in S, 1 \le h \le h_S$$
+     3. $$\sum_{h=1}^{h_S}Z_{S,h} = 1, \quad \forall S \in \mathcal{S}$$
      4. $$\sum_{i \in \mathcal{I}{(i)}}f_j^i  = \sum_{j \in \mathcal{O}{(i)}}f_i^j,
-         \forall i \in \mathcal{N}$$ 
-     5. $$f_{i,j} \in \mathbb{Z}_+ \forall (i,j) \in \mathcal{A} $$
+         \quad \forall i \in \mathcal{N}$$ 
+     5. $$f_{i,j} \in \mathbb{Z}_+ \quad  \forall (i,j) \in \mathcal{A} $$
         
      The binary variable $Z_{S,h}$ is 1 if $\mathcal{T}_S^h$ is the selected set
      of trips for school S.
@@ -303,8 +303,34 @@ $$ minimize \sum_{s \in S}\sum_{h=1}^{h_S}\sum_{R \in \mathcal{T}_S^h}f_y^{\rho_
     We define a "bus selection graph" ($\overline{\mathcal{N}}, \overline{\mathcal{A}}$), where the
     set of nodes $\overline{\mathcal{N}}$ consists of: 
     1. a node $y_{b,\mathcal{l}}$ for each bus type $b \in \mathcal{B}$ and each
-       pysical bus depot locations $\mathcal{l} \in \mathcal{L}$.
-    2.  
-       
-
+        bus depot locations $\mathcal{l} \in \mathcal{L}$.
+    2. a trip node $\rho_{S,R,b,l}^{AM}$ for each school S, each morning trip R in the selected
+       scenario, each bus type b, and each depot location l
+      
+    and set of arc  $\overline{\mathcal{A}}$ consists of:
+    1. an arc to and from the depot node $y_{b,l}$ for each trip node
+       $\rho_{S,R,b,l}^{AM}$ and $\rho_{S,R,b,l}^{PM}$
+    2. an arc from each trip node $\rho_{S,R,b,l}^{AM}$ and
+       $\rho_{S,R,b,l}^{PM}$ where trip $R^{'}$ for school $S^{'}$ is
+       time-compatible with a bus starting from school $S$.
+         
+Each arc(i,j) has a cost(i,j), and bus cost(b) for each bus type.
     
+*** Variables
+   1. BusFlow $f_i^j$  all the edges for the graph. Binary
+   2. YardCapacity $K_{b,l}$ positive integer
+*** Objective 
+$$ minimize   \quad \gamma \sum_{b \in \mathcal{B}} \sum_{l \in \mathcal{L}}c_b K_{b,l} + (1 - \gamma) \sum_{(i,j) \in \mathcal{\overline{A}}}c_{i,j}f_i^{j}$$ 
+*** Constraints
+ 1. $$\sum_{i \in \mathcal{\overline{I}}{(i)}}f_j^i  = \sum_{j \in \mathcal{\overline{O}}{(i)}}f_i^j,
+      \quad  \forall i \in \mathcal{\overline{N}}$$
+      enforces flow conservation, which simply means that buses must leave the
+       yard, serve at least one trip, and then return to the yard.
+       
+ 2. $$\sum_{b \in \mathcal{B}} \sum_{l \in \mathcal{L}} \sum_{i \in \mathcal{\overline{I} (\rho_{R,S,b,l}^{q})}} f_i^{\rho_{R,S,b,l}^{q}} = 1, \quad \forall s \in S, \forall R \in \mathcal{T}_S^{q}, q \in {\{AM, PM\}} $$
+   
+   enforces that each trip is served by exactly one bus, from one particular
+   depot location and of one particular type.
+
+ 3. $$\sum_{i \in \mathcal{O^{q(y_{b,l})}}} f_y{b,l}^i \leq K_{b,l}, \quad \forall b \in
+     \mathcal{B}, l \in \mathcal{L}, q \in {\{AM, PM\}}$$
