@@ -7,8 +7,11 @@
 """
 	Convert number of seconds since midnight to DateTime format
 """
+using Dates
+
 function totime(x)
-	newx = round(x, 3)
+	# newx = round(x, 3)  #shuai
+	newx  = round(x, digits=3)
 	hours = div(newx, 3600)
 	minutes = div(newx % 3600, 60)
 	seconds = floor(newx % 60)
@@ -42,55 +45,55 @@ function output(data::SchoolBusData)
 			for k in length(data.routes[school][route].stops):-1:2
 				stop = data.routes[school][route].stops[k]
 				# add waiting time at stop
-				unshift!(act, "pickup")
-				unshift!(dst_t, src_t[1])
-				unshift!(dst, src[1])
-				unshift!(src, src[1])
+				pushfirst!(act, "pickup")
+				pushfirst!(dst_t, src_t[1])
+				pushfirst!(dst, src[1])
+				pushfirst!(src, src[1])
 				currenttime -= stopTime(data, data.stops[school][stop])
-				unshift!(src_t, totime(currenttime))
+				pushfirst!(src_t, totime(currenttime))
 				# add travel time from previous stop
-				unshift!(act, "travel")
-				unshift!(dst_t, src_t[1])
-				unshift!(dst, src[1])
+				pushfirst!(act, "travel")
+				pushfirst!(dst_t, src_t[1])
+				pushfirst!(dst, src[1])
 				prev = data.routes[school][route].stops[k-1]
-				unshift!(src, data.stops[school][prev].uniqueId + 100000)
+				pushfirst!(src, data.stops[school][prev].uniqueId + 100000)
 				currenttime -= traveltime(data, data.stops[school][prev], data.stops[school][stop])
-				unshift!(src_t, totime(currenttime))
+				pushfirst!(src_t, totime(currenttime))
 			end
 			stop = data.routes[school][route].stops[1]
-			unshift!(act, "pickup")
-			unshift!(dst_t, src_t[1])
-			unshift!(dst, src[1])
-			unshift!(src, src[1])
+			pushfirst!(act, "pickup")
+			pushfirst!(dst_t, src_t[1])
+			pushfirst!(dst, src[1])
+			pushfirst!(src, src[1])
 			currenttime -= stopTime(data, data.stops[school][stop])
-			unshift!(src_t, totime(currenttime))
+			pushfirst!(src_t, totime(currenttime))
 			if i == 1
-				unshift!(act, "deadhead")
-				unshift!(dst_t, src_t[1])
-				unshift!(dst, src[1])
-				unshift!(src, 900000 + bus.yard)
+				pushfirst!(act, "deadhead")
+				pushfirst!(dst_t, src_t[1])
+				pushfirst!(dst, src[1])
+				pushfirst!(src, 900000 + bus.yard)
 				currenttime -= traveltime(data, data.yards[bus.yard], data.stops[school][stop])
-				unshift!(src_t, totime(currenttime))
+				pushfirst!(src_t, totime(currenttime))
 			else
-				unshift!(act, "deadhead")
-				unshift!(dst_t, src_t[1])
-				unshift!(dst, src[1])
-				unshift!(src, 200000 + data.schools[bus.schools[i-1]].id)
+				pushfirst!(act, "deadhead")
+				pushfirst!(dst_t, src_t[1])
+				pushfirst!(dst, src[1])
+				pushfirst!(src, 200000 + data.schools[bus.schools[i-1]].id)
 				currenttime -= traveltime(data, data.schools[bus.schools[i-1]],
 				                          data.stops[school][stop])
-				unshift!(src_t, totime(currenttime))
-				unshift!(act, "wait")
-				unshift!(dst_t, src_t[1])
-				unshift!(dst, src[1])
-				unshift!(src, src[1])
+				pushfirst!(src_t, totime(currenttime))
+				pushfirst!(act, "wait")
+				pushfirst!(dst_t, src_t[1])
+				pushfirst!(dst, src[1])
+				pushfirst!(src, src[1])
 				currenttime = data.schools[bus.schools[i-1]].starttime
-				unshift!(src_t, totime(currenttime))
-				unshift!(act, "dropoff")
-				unshift!(dst_t, src_t[1])
-				unshift!(dst, src[1])
-				unshift!(src, src[1])
+				pushfirst!(src_t, totime(currenttime))
+				pushfirst!(act, "dropoff")
+				pushfirst!(dst_t, src_t[1])
+				pushfirst!(dst, src[1])
+				pushfirst!(src, src[1])
 				currenttime -= data.schools[bus.schools[i-1]].dwelltime
-				unshift!(src_t, totime(currenttime))
+				pushfirst!(src_t, totime(currenttime))
 			end
 			# add this school to the itinerary
 			append!(start_loc, src)
@@ -123,3 +126,6 @@ function output(data::SchoolBusData)
 	df[:end_time] = end_time
 	return df
 end
+
+data1 = output(data1)
+g

@@ -111,7 +111,7 @@ unique(graph_test.nodeTypes[:ArrivalNode])
 
 type1 = :DepartureNode
 type2 = :ArrivalNode
-type2  = :YardNode
+type2 = :YardNode
 
 
 unique(nodeTypes[type1])
@@ -156,12 +156,12 @@ function getSchoolScenarioNodes!(data::SchoolBusData, schoolID::Int,
     return schoolNodes, currentNodeId
 end
 scenario = data.scenarios[schoolID][1]
-# nodeTypes = Dict(elt => Int[] for elt in [:YardNode, :ArrivalNode, :DepartureNode])
-# scenarioNum = 1
-# schoolID = 1
-# routeID = 22
-# currentNodeId = 1
-# x,y = getSchoolScenarioNodes!(data, schoolID, 1, 1, nodeTypes)
+nodeTypes = Dict(elt => Int[] for elt in [:YardNode, :ArrivalNode, :DepartureNode])
+scenarioNum = 1
+schoolID = 1
+routeID = 22
+currentNodeId = 1
+x,y = getSchoolScenarioNodes!(data, schoolID, 1, 1, nodeTypes)
 
 
 """
@@ -215,6 +215,7 @@ function createEdge!(data::SchoolBusData, graph::DiGraph,
         # can only go to another school and route must be feasible
         if isFeasibleInTime(data, node1.school, node2.school,
                             node2.route, node2.serviceTime)
+
             edgeWasAdded = add_edge!(graph, node1.id, node2.id)
         end
     end
@@ -249,11 +250,13 @@ function edges_out(graph::DiGraph, node::Int)
 end
 
 node = graph_test.nodeTypes[:DepartureNode][1]
+node = graph_test.nodeTypes[:ArrivalNode][1]
+node = graph_test.nodeTypes[:YardNode][1]
 graph = graph_test.graph
 a = edges_out(graph_test.graph, node)
+c = edges_in(graph_test.graph, node)
 b = outdegree(graph_test.graph, node)
 
-j = 134
 """
     Wrapper function replacing LightGraphs.in_edges since it was deprecated
     Returns a generator with the desired edges
@@ -262,6 +265,9 @@ j = 134
 function edges_in(graph::DiGraph, node::Int)
     return (Edge(j, node) for j in inneighbors(graph, node))
 end
+
+node = graph_test.nodeTypes[:ArrivalNode][1]
+c = edges_in(graph_test.graph, node)
 
 """
     Flow method for scenario selection
@@ -278,23 +284,24 @@ function selectScenario(data::SchoolBusData, sg::ScenarioGraph; args...)
     # model = Model(solver = GurobiSolver(Threads=getthreads(), MIPGap=0.01; args...)) #shuai
     model =  Model(with_optimizer(Cbc.Optimizer, threads = 8, allowableGap = 0.01;args...))
 
-    @variable(model, useScenario[i=eachindex(data.schools), j=1:sg.numScenarios[i]], Bin)
-    @variable(model, busFlow[edge=edges(sg.graph)] >= 0, Int)
+    @variable(model, useScenario[i=eachindex(data.schools), j=1:sg.numScenarios[i]], Bin) #4.3e
+    @variable(model, busFlow[edge=edges(sg.graph)] >= 0, Int) #4.3f
 
     @constraint(model, capacityDeparture[i=sg.nodeTypes[:DepartureNode]],
                 sum(busFlow[edge] for edge=edges_out(sg.graph, i)) <= sg.nodes[i].capacity)
+
     @constraint(model, capacityArrival[i=sg.nodeTypes[:ArrivalNode]],
                 sum(busFlow[edge] for edge=edges_out(sg.graph, i)) ==
-                useScenario[sg.nodes[i].school, sg.nodes[i].scenario])
+                useScenario[sg.nodes[i].school, sg.nodes[i].scenario]) #4.3b
 
     @constraint(model, oneScenario[i=eachindex(data.schools)],
-                sum(useScenario[i,j] for j=1:sg.numScenarios[i]) == 1)
+                sum(useScenario[i,j] for j=1:sg.numScenarios[i]) == 1) #4.3d
 
     @constraint(model, flowConservation[i=vertices(sg.graph)],
                 sum(busFlow[edge] for edge=edges_in(sg.graph, i)) ==
-                sum(busFlow[edge] for edge=edges_out(sg.graph, i)))
+                sum(busFlow[edge] for edge=edges_out(sg.graph, i))) #4.3c
 
-    @objective(model, Min, sum(busFlow[edge] * edgeCost(edge) for edge=edges(sg.graph)))
+    @objective(model, Min, sum(busFlow[edge] * edgeCost(edge) for edge=edges(sg.graph))) #4.3a
 
     # status = solve(model) #shuai
     JuMP.optimize!(model)
@@ -361,6 +368,7 @@ function buildFullRoutingGraph(data::SchoolBusData, usedScenario::Vector{Int})
     # yard nodes
     for yard in data.yards
         push!(nodes, FullYardNode(currentId, yard.id))
+        # currentId += 1
         currentId += 1
     end
     # school bus nodes
@@ -371,7 +379,7 @@ function buildFullRoutingGraph(data::SchoolBusData, usedScenario::Vector{Int})
             for yard in data.yards
                 push!(nodes, BusNode(currentId, yard.id, route, schoolID,
                                      serviceTime(data, schoolID, route)))
-                currentId += 1
+                 currentId += 1
             end
         end
     end
@@ -387,6 +395,11 @@ function buildFullRoutingGraph(data::SchoolBusData, usedScenario::Vector{Int})
 end
 
 test_full_graph =  buildFullRoutingGraph(data, test_used_scenario)
+usedScenario =  test_used_scenario
+schoolID = 1
+routeID = 11
+yard = data.yards[1]
+
 """
     Method creates an edge between two nodes, with one function per type of node pair
 """
@@ -419,6 +432,7 @@ function createEdge!(data::SchoolBusData, graph::DiGraph,
     if node1.yardId == node2.yardId && node1.school != node2.school
         if isFeasibleInTime(data, node1.school,
                             node2.school, node2.route, node2.serviceTime)
+        println(node1, node2) #shuai
             edgeWasAdded = add_edge!(graph, node1.id, node2.id)
             cost = traveltime(data, data.schools[node1.school],
                               data.stops[node2.school][node2.route.stops[1]])
@@ -444,33 +458,41 @@ end
     Bus scheduling problem
 """
 function solveFullRouting(data::SchoolBusData, frg::FullRoutingGraph; args...)
-    model = Model(solver = GurobiSolver(Threads=getthreads(), MIPGap=0.01; args...))
+    # model = Model(solver = GurobiSolver(Threads=getthreads(), MIPGap=0.01; args...)) #shuai
+    model =  Model(with_optimizer(Cbc.Optimizer, threads = 8, allowableGap = 0.01;args...))
+    # model =  Model(with_optimizer(Cbc.Optimizer, threads = 8, allowableGap = 0.01))
     # variables - morning
     @variable(model, busFlow[edge=edges(frg.graph)], Bin)
-    length([node for node in frg.nodes if typeof(node) == FullYardNode]) > 1 &&
-        error("Too many yards")
-    # variables - yard capacity
-    @variable(model, yardCapacity[y=eachindex(frg.nodes);
-                                  typeof(frg.nodes[y]) == FullYardNode] >= 0, Int)
-    # a route can be served by at most one bus from a given yard - morning
-    @constraint(model, oneBusPerRoute[nodeId=eachindex(frg.nodes);
-                                      typeof(frg.nodes[nodeId]) == BusNode],
-                sum(busFlow[edge] for edge = edges_in(frg.graph, nodeId)) == 1)
-    # flow conservation constraints - morning
-    @constraint(model, flowConservation[nodeId=vertices(frg.graph)],
-                sum(busFlow[edge] for edge=edges_in(frg.graph, nodeId)) ==
-                sum(busFlow[edge] for edge=edges_out(frg.graph, nodeId)))
-    @constraint(model, flowBound[y=eachindex(frg.nodes);
-                                 typeof(frg.nodes[y]) == FullYardNode],
-                sum(busFlow[edge] for edge=edges_out(frg.graph, y)) <= yardCapacity[y])
-    # minimize the total cost of buses (First Order = total number of bus)
-    @objective(model, Min, sum(yardCapacity[y]
-                               for (y,node)=enumerate(frg.nodes) if typeof(node) == FullYardNode))
-    status = solve(model)
-    flows = Dict(edge => getvalue(busFlow[edge]) for edge=edges(frg.graph))
+        length([node for node in frg.nodes if typeof(node) == FullYardNode]) > 1 &&
+            error("Too many yards")
+        # variables - yard capacity
+        @variable(model, yardCapacity[y=eachindex(frg.nodes);
+                                      typeof(frg.nodes[y]) == FullYardNode] >= 0, Int)
+        # a route can be served by at most one bus from a given yard - morning
+        @constraint(model, oneBusPerRoute[nodeId=eachindex(frg.nodes);
+                                          typeof(frg.nodes[nodeId]) == BusNode],
+                    sum(busFlow[edge] for edge = edges_in(frg.graph, nodeId)) == 1)
+        # flow conservation constraints - morning
+        @constraint(model, flowConservation[nodeId=vertices(frg.graph)],
+                    sum(busFlow[edge] for edge=edges_in(frg.graph, nodeId)) ==
+                    sum(busFlow[edge] for edge=edges_out(frg.graph, nodeId)))
+        @constraint(model, flowBound[y=eachindex(frg.nodes);
+                                     typeof(frg.nodes[y]) == FullYardNode],
+                    sum(busFlow[edge] for edge=edges_out(frg.graph, y)) <= yardCapacity[y])
+        # minimize the total cost of buses (First Order = total number of bus)
+        @objective(model, Min, sum(yardCapacity[y]
+                                   for (y,node)=enumerate(frg.nodes) if typeof(node) == FullYardNode))
+
+    # status = solve(model)
+    JuMP.optimize!(model)
+    # flows = Dict(edge => getvalue(busFlow[edge]) for edge=edges(frg.graph))
+    flows = Dict(edge => JuMP.value(busFlow[edge]) for edge=edges(frg.graph))
     return interpretFlows!(data, frg, flows)
 end
 
+full_route_test = solveFullRouting(data, test_full_graph )
+frg = test_full_graph
+print(a)
 """
     Given flows, get final buses
 """
@@ -526,6 +548,7 @@ function followBusAlongRoute!(frg::FullRoutingGraph, flows::Dict, yardNode::Int)
     return schools, routes
 end
 
+followBusAlongRoute!(test_used_scenario, )
 function routeBuses!(data::SchoolBusData; args...)
     sg = buildScenarioGraph(data)
     data.usedScenario = selectScenario(data, sg; args...)
@@ -534,3 +557,5 @@ function routeBuses!(data::SchoolBusData; args...)
     data.withFinalBuses = true
     return data
 end
+
+data1 = routeBuses!(data)

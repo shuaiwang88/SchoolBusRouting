@@ -1,0 +1,310 @@
+#+TITLE: Cincinnati Public School Bus Routing and Bell Time Optimization 
+#+AUTHOR: Dr. Shuai Wang 
+#+DATE:  09/28/2019 
+#+EMAIL: wang.172@wright.edu
+#+SETUPFILE:  https://fniessen.github.io/org-html-themes/setup/theme-bigblow.setup
+
+* Overview
+** Single school
+   
+We first assign the stops, which optimize the number of stops for each school and the total student walking distance.
+This is similar to a facility location problem. 
+
+Single school routing:
+
+1. Generate a set of single feasible trip using randomized greedy heuristic, making sure each stop is served by a nonempty set of feasible trips.(func: greedy)
+2. Run the heuristic N times, so that each stop is covered by N different feasible trips. (func: generateRoutes) 
+3. Find the best sub set of trips that covers each stop, by using a minimum cover problem. Some stops may be servered by more than one trip. (func: bestRoutes)
+4. Trim the stops covered with multiple trips. (func: buildSolution)
+
+The output of single school routing is set of trips that covers every stop
+excatly once for each school.
+
+The senarios are the tradeoff parameters $\lambda$ to obtain an array of varied
+routing scenarios for each school.
+
+For each school, we end up with a set of routing scenarios, where each scenario
+is a complete set of trips that covers every stop exactly once.
+
+Each senario is located in a different region of the Pareto front between two objectives,
+the number of buses and the average student travel time.
+
+** Multiple schools
+   
+*** Scenario selection
+
+The input is a set of scenarios Rs of a size hs for each school S. Because what
+is optimal for one school may not be optimal for the entire system. We consider
+several several scenarios on the Pareto frontier of two objectives: numer of
+buses and average riding time. The trade-offs makes sense because shorter routes
+are more easily connected into bus schedules.
+
+Then we first jointly select one scenario for each school in a way that favors
+maximal re-use of buses from school to school, by using a network flow stucture
+that minimized the objective across the whole district: **minimum number of buses
+out of Yard**.
+
+Notes:
+This only tells which scenario between the school can be linked, namely some
+"Departure nodes" from school1 can be linked to some "Arrival nodes" from the
+school2. It **does not** tell which specific trips are linked to the school2.
+On the contrary, it might have multiple trips from same scenario of school1 can
+be linked to school2.
+
+*** Bus Scheduling 
+
+Given the one routing scenario for each school, we can then solve another
+integer optimization problem to identify a trip-by-trip iternary for each bus on
+the fleet. In this final subproblem, we optimize the numeber of buses jontly in
+the morning and in the afternoon.
+
+Notes:
+The input of the Bus selection is an array of scenario for each school.
+The trips in the scenario can have multiple cases where trip can be linked from
+the school1 and school2. Consequently, bus scheduling help to choose the minimum
+trips which linking the school1 and school2. E.g. scenario1 from school1 has 3
+different trips {2,12,39} can be linked to school2's scenario2 trip {32}:
+{2,12,39} -> {32}, the bus scheduling will only keep one and only one from
+{2,12,39} to be linked to {32}.
+
+
+* Routing: Bi-objective Routing Decomposition (BiRD)
+   :PROPERTIES:
+   :CUSTOM_ID: routing-bi-objective-routing-decomposition-bird
+   :END:
+
+Decomposing the routing problem:
+
+1. single-school
+
+   1. stop assignment
+   2. single-school routing
+     
+2. multi-school
+
+   1. scenario selection
+   2. bus scheduling
+
+** Stop Assignment
+    :PROPERTIES:
+    :CUSTOM_ID: stop-assignment
+    :END:
+
+*** Set/Parameters
+     :PROPERTIES:
+     :CUSTOM_ID: setparameters
+     :END:
+
+| Identifier   | Index/Set Domain    | Comment                                                |
+|--------------+---------------------+--------------------------------------------------------|
+| schools      | S                   | set of schools                                         |
+| students     | P                   | set of students                                        |
+| $P_s$        | $s \in S$           | set of students attending school s                     |
+| Locations    | C                   | set of all locations can serve as bus stops            |
+| $C_p$        | $C_p \subseteq C$   | Allowed bus stops for student $p \in P_s$              |
+| $d_{p,c}$    |                     | walking distance for student p to a stop $c \in C_p$   |
+
+For student p with special needs may require a "door-to-door" pickup:
+the set $C_p$ is a singleton ${c}$, where $d_{p,c} = 0$.
+
+The objective is to minimize the number of stops for each schools and
+the total walking distance. This is similar to a facility location
+problem.
+
+*** Variable
+     :PROPERTIES:
+     :CUSTOM_ID: variable
+     :END:
+
+$z_c$: binary whether stop c is selected for school S.
+
+$y_{p,c}$: binary whether student p is assigned to stop c. 
+
+*** Objective and Constraints
+     :PROPERTIES:
+     :CUSTOM_ID: objective-and-constraints
+     :END:
+
+For each school S, minimize the total number of stops and walking distance:
+
+$$ min \sum_{c \in C} z_c + \beta \sum_{p \in P_s} \sum_{c \in C_p} d_{p,c} y_{p,c}$$
+
+subject to:
+
+1. student p is assigned to c only if stop c is selected for school s.
+   $$y_{p,c} \leq z_c,  \forall p \in P_s , c \in C_p$$
+   
+2. Each student is assigned to 1 stop
+   $$\sum_{c \in C_p} y_{p,c} = 1 ,\forall p \in P_s $$
+
+Where $\beta$ is the trade-off of the total number of stops and walking
+distance.
+
+** Single school routing
+    :PROPERTIES:
+    :CUSTOM_ID: single-school-routing
+    :END:
+
+After the stop assignment, $C_s$ is the set of bus stops which serve
+school S.
+$n_{c,S}$ is number of students from school S at a stop c.
+
+*** Bus
+     :PROPERTIES:
+     :CUSTOM_ID: bus
+     :END:
+
+     | Identifier             | index/set | comment                             |
+     |------------------------+-----------+-------------------------------------|
+     | Bus Type               | b/B       |                                     |
+     | Capacity $Q_b$         | b         |                                     |
+     | Wheelchair spots $W_b$ | b         | fixed number of wheelchair          |
+     | Bus depot $Y$          |           | *stored during the night or day???* |
+
+*** Trip
+**** Time
+     | Identifier                 | comment                                                                |
+     |----------------------------+------------------------------------------------------------------------|
+     | $t_{c,S}^{pick}$           | length of time to pick all p for S at c; function of $n_{c,S}$         |
+     | $t_{S}^{drop}$             | length of time to drop all p at school S; fixed                        |
+     | $t_{l_1,l_2,\tau}^{drive}$ | driving time from $l_1$ to  $l_2$ $\in S \cup C \cup Y$ at time $\tau$ |
+     | $\tau_S$                   | all buses must arrive at school S at $\tau_S$                          |
+     | $t_{S}^{drop}$ + $\tau_S$  | bus free to leave at this time                                         |
+     | $T^{max}$                  | maximum time that students allowed to spend on the bus                 |
+
+     $t_{l_1,l_2,\tau}^{drive}$ are deterministic and known, and usual got from API
+     such as Google Map. Due to reality, such as accident, and to mitigate the impact
+     of the traffic, the drop-off times $t_{S}^{drop}$ is artificially increase to
+     say 10-15 minutes even it only takes 3 minutes.
+
+**** Trip/Route
+      A trip/route is a ordered sequence of stops visited or served, by a bus. 
+      For school S, a feasible trip/route:
+ 1. no student spends more than $T^{Max}$ between pickup and drop-off.
+ 2. there exists a type of bus with capacity and carry all students assigned to
+    the stops severed by the trip.
+
+Given a feasible route $R$:
+
+- $B_R \subseteq B$: the set of types of buses that have the necessary capacity to serve the trip.
+
+- $T_R$: service time of the trip, the time between arrival at the stop to the final school
+
+- $T_S$: A set of feasible trips, each stops $c \in C_s$ is served by a nonempty 
+  set of feasible trips $T_c \subset T_S$.
+
+  For example:
+  School S has 4 different sets of feasible trips, stop c4 can be served by two
+  differents trips 3 and 5, so $T_c = {3,5}$.
+  
+  The heuristic returns a set of trips T what covers each stop **exactly once**.
+  Then we run it N times to build a set of feasible trips where each stop is
+  covered by serveral trips. The heuristic returns N different solutions and
+  each stop will be covered by N different feasible trips.
+
+Trips in $T_S$ indexed by $1,...,m_S$.
+
+For given set of trips $T \subseteq T_S$: $I(T)$ is the subset of
+$\{1,...,m_S\}$ corresponding to trips in T.
+
+For example:
+School S has 4 different set of feasible trips, with 25 different trips in total.
+Stop c4 can be served by two differents trip 3 and 5, so $I(T_c) = I(T_4) = {3,5}
+\subset {1,...25}$
+
+*** Find best set of routes
+**** Variable
+      $r_i$: binary whether trip i is selected $\forall i \in \{1,...,m_S\}$
+      
+**** Objective
+      $$ min \hspace{0.5cm} \lambda \sum_{i=1}^{m_S} r_i + \sum_{i=1}^{m_S} r_i \Theta_i $$
+     
+**** Constraints
+      every stop must be served by at least one trip. 
+     $$\sum_{i \in I(T_c)} r_i \ge 1, \forall c \in C_S$$ 
+    
+     where, for each trip $i$ in $T_s$, $\Theta_i = \sum_{p:c_p \in C_i}
+     \theta_p^{(i)}$, where $C_i$ reprents the list of stops served by the
+     $i-th$ trip $i$,
+     
+     $\theta_p^{(i)}$ corresponds to tiem spent by student $p$ on the bus druing
+     trip $i$.
+     
+     $\lambda$ controls the importance of the number of trips relative to the
+     total time students on the bus.
+     
+     In the optimal solution above, some stops may be served by more than one trip. 
+     Set of trips $T_c^{opt} \subset T_S$ serving each such stop c. For each
+     $i\in I(T_c^{opt})$, we compute the improvement $\delta_i$ to the objective
+     that would be obtained by removing stop $c$ from trip $i$.
+     
+     
+
+
+     
+     
+** Scenario Selection 
+   scenario selection graph with $\{{\mathcal{N},\mathcal{A}\}}$ 
+   where $\mathcal{N}$ consists of nodes: 
+*** Node
+     
+| Type           | Notation       | comment                                                                                         |
+|----------------+----------------+-------------------------------------------------------------------------------------------------|
+| depot          | y              |                                                                                                 |
+| trip           | $\rho_{S,h,R}$ | for each school S, and routing scenario $1 \le h \le h_S$ and each trip $R \in \mathcal{T}_S^h$ |
+| available node | $a_{S,h}$      | for each school S, and routing scenario $1 \le h \le h_S$                                       |
+
+*** Arcs
+  The set of arcs **$\mathcal{A}$**  includes an arc from depot to trip; trip to corresponding
+  available node; from available node back to the depot.
+
+  Also, an arc from each available node to each trip node where trip $R' \in
+  \mathcal{T}_{S'}^{h'}$ is compatible with the a bus staring from school S.
+  $\tau_S + t_S^{drop-off} + t_{S, c_{R'}^{start}, \tau_S}^{drive} + \mathcal{T}_R \le \tau_{S'}$
+
+  For a note $i \in \mathcal{N}, let \hspace{0.1cm} \mathcal{I}{(i)} \subseteq \mathcal{N}$ be the
+  in-neighborhood of the node i, and $\mathcal{O}{(i)} \subseteq \mathcal{N}$
+*** Variable
+    1. $f_i^j$: integer flow variables for each arc(i,j).
+    2. $\mathcal{Z}_{S,h}$: whether to select scenario h for school S or not
+
+*** Objective
+     Minimize the total number of buses corresponds to minimizing the total flow
+     out of the yard node y.
+$$ minimize \sum_{s \in S}\sum_{h=1}^{h_S}\sum_{R \in \mathcal{T}_S^h}f_y^{\rho_{S,h,R}}$$ 
+
+*** Constraints
+     flows along all arcs must be integral.
+     1. $$f_{a_{S,h}}^{\rho_{S,h,R}}= z_{S,h},  S \in \mathcal{S}, 1\leq h \in h_s, R \in \mathcal{T}_h^S$$
+     2. $$\mathcal{Z}_{S,h} \in \{0,1\}, \forall S \in S, 1 \le h \le h_S$$
+     3. $$\sum_{h=1}^{h_S}Z_{S,h} = 1, \forall S \in \mathcal{S}$$
+     4. $$\sum_{i \in \mathcal{I}{(i)}}f_j^i  = \sum_{j \in \mathcal{O}{(i)}}f_i^j,
+         \forall i \in \mathcal{N}$$ 
+     5. $$f_{i,j} \in \mathbb{Z}_+ \forall (i,j) \in \mathcal{A} $$
+        
+     The binary variable $Z_{S,h}$ is 1 if $\mathcal{T}_S^h$ is the selected set
+     of trips for school S.
+    
+ 
+     $3$ exactly one set of trips/one scenario is
+     selected for each school. 
+     
+     $4$ ensures conservation of flow $f_i^j$ at each node, 
+     * At the depot node $y$, it means that buses leaving the depot must
+       eventually come back. 
+     * At a trip node $\rho_{S,h,R}$, it means that a bus serving trip $R$ must then
+       become available at school $S$ at time $\tau_S + t_S^{drop-off}$
+     * At an availability node $a_{S,h}$ , it means that a bus that is available at
+       a school after serving a trip must either return to the yard or serve
+       another trip.
+
+** Bus Scheduling
+    To determine the final bus schedules given exactly one routing routing scenario for each school.
+    We define a "bus selection graph" ($\overline{\mathcal{N}}, \overline{\mathcal{A}}$), where the
+    set of nodes $\overline{\mathcal{N}}$ consists of: 
+    1. a node $y_{b,\mathcal{l}}$ for each bus type $b \in \mathcal{B}$ and each
+       pysical bus depot locations $\mathcal{l} \in \mathcal{L}$.
+    2.  
+       
+
+    

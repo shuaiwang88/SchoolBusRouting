@@ -1,0 +1,34 @@
+[19]  =  oneBusPerRoute[19] : busFlow[Edge 1 => 19] + busFlow[Edge 49 => 19] + busFlow[Edge 50 => 19] + busFlow[Edge 51 => 19] + busFlow[Edge 52 => 19] + busFlow[Edge 53 => 19] + busFlow[Edge 54 => 19] + busFlow[Edge 55 => 19] + busFlow[Edge 56 => 19] + busFlow[Edge 57 => 19] + busFlow[Edge 58 => 19] + busFlow[Edge 59 => 19] + busFlow[Edge 60 => 19] + busFlow[Edge 61 => 19] + busFlow[Edge 62 => 19] + busFlow[Edge 63 => 19] + busFlow[Edge 64 => 19] + busFlow[Edge 65 => 19] + busFlow[Edge 66 => 19] + busFlow[Edge 67 => 19] = 1.0
+
+
+flowConservation[2] : busFlow[Edge 1 => 2] + busFlow[Edge 49 => 2] + busFlow[Edge 50 => 2]
++ busFlow[Edge 51 => 2] + busFlow[Edge 52 => 2] + busFlow[Edge 53 => 2] + busFlow[Edge 54 => 2]
++ busFlow[Edge 55 => 2] + busFlow[Edge 56 => 2] + busFlow[Edge 57 => 2] + busFlow[Edge 58 => 2]
+ busFlow[Edge 59 => 2] + busFlow[Edge 60 => 2] + busFlow[Edge 61 => 2] + busFlow[Edge 62 => 2] +
+  busFlow[Edge 63 => 2] + busFlow[Edge 64 => 2] + busFlow[Edge 65 => 2] + busFlow[Edge 66 => 2] +
+   busFlow[Edge 67 => 2] - busFlow[Edge 2 => 1] - busFlow[Edge 2 => 20] - busFlow[Edge 2 => 31] -
+    busFlow[Edge 2 => 32] - busFlow[Edge 2 => 33] - busFlow[Edge 2 => 34] - busFlow[Edge 2 => 35] -
+    busFlow[Edge 2 => 36] - busFlow[Edge 2 => 37] - busFlow[Edge 2 => 38] - busFlow[Edge 2 => 39] -
+    busFlow[Edge 2 => 40] - busFlow[Edge 2 => 41] - busFlow[Edge 2 => 42] - busFlow[Edge 2 => 68] -
+     busFlow[Edge 2 => 69] - busFlow[Edge 2 => 70] - busFlow[Edge 2 => 71] - busFlow[Edge 2 => 72] -
+      busFlow[Edge 2 => 73] - busFlow[Edge 2 => 74] - busFlow[Edge 2 => 75] = 0.0
+
+      # [1]  =  flowBound[1] : busFlow[Edge 1 => 2] + busFlow[Edge 1 => 3] + busFlow[Edge 1 => 4] + busFlow[Edge 1 => 5] +
+      #  busFlow[Edge 1 => 6] + busFlow[Edge 1 => 7] + busFlow[Edge 1 => 8] + busFlow[Edge 1 => 9] + busFlow[Edge 1 => 10] +
+      #  busFlow[Edge 1 => 11] + busFlow[Edge 1 => 12] + busFlow[Edge 1 => 13] + busFlow[Edge 1 => 14] + busFlow[Edge 1 => 15] +
+      #  busFlow[Edge 1 => 16] + busFlow[Edge 1 => 17] + busFlow[Edge 1 => 18] + busFlow[Edge 1 => 19] +
+      #  busFlow[Edge 1 => 20] + busFlow[Edge 1 => 21] + busFlow[Edge 1 => 22] + busFlow[Edge 1 => 23] +
+      #  busFlow[Edge 1 => 24] + busFlow[Edge 1 => 25] + busFlow[Edge 1 => 26] + busFlow[Edge 1 => 27] +
+      #  busFlow[Edge 1 => 28] + busFlow[Edge 1 => 29] + busFlow[Edge 1 => 30] + busFlow[Edge 1 => 31] +
+      #  busFlow[Edge 1 => 32] + busFlow[Edge 1 => 33] + busFlow[Edge 1 => 34] + busFlow[Edge 1 => 35] +
+      #  busFlow[Edge 1 => 36] + busFlow[Edge 1 => 37] + busFlow[Edge 1 => 38] + busFlow[Edge 1 => 39] +
+      #  busFlow[Edge 1 => 40] + busFlow[Edge 1 => 41] + busFlow[Edge 1 => 42] + busFlow[Edge 1 => 43] +
+      #  busFlow[Edge 1 => 44] + busFlow[Edge 1 => 45] + busFlow[Edge 1 => 46] + busFlow[Edge 1 => 47] +
+      #  busFlow[Edge 1 => 48] + busFlow[Edge 1 => 49] + busFlow[Edge 1 => 50] + busFlow[Edge 1 => 51] +
+      #  busFlow[Edge 1 => 52] + busFlow[Edge 1 => 53] + busFlow[Edge 1 => 54] + busFlow[Edge 1 => 55] +
+      #  busFlow[Edge 1 => 56] + busFlow[Edge 1 => 57] + busFlow[Edge 1 => 58] + busFlow[Edge 1 => 59] +
+      #  busFlow[Edge 1 => 60] + busFlow[Edge 1 => 61] + busFlow[Edge 1 => 62] + busFlow[Edge 1 => 63] +
+      #  busFlow[Edge 1 => 64] + busFlow[Edge 1 => 65] + busFlow[Edge 1 => 66] + busFlow[Edge 1 => 67] +
+      #  busFlow[Edge 1 => 68] + busFlow[Edge 1 => 69] + busFlow[Edge 1 => 70] + busFlow[Edge 1 => 71] +
+      #  busFlow[Edge 1 => 72] + busFlow[Edge 1 => 73] + busFlow[Edge 1 => 74] + busFlow[Edge 1 => 75] -
+      #      yardCapacity[1] ≤ 0.0

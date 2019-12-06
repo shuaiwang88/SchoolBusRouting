@@ -13,7 +13,7 @@ using Geodesy, Colors
 using JuMP, Cbc
 import JLD
 import Base: convert
-#using SFML, Plots
+using SFML, Plots
 
 include("problem.jl")
 include("load.jl")
